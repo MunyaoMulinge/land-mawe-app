@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import pool from './db.js';
+import { supabase } from './supabase-client.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,6 +13,28 @@ app.use(express.json());
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name } = req.body;
   try {
+    // Try Supabase client first, fallback to direct DB
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name }
+        }
+      });
+      
+      if (error) throw error;
+      
+      res.json({ 
+        user: { id: data.user.id, email: data.user.email, name },
+        token: 'supabase-' + data.user.id
+      });
+      return;
+    } catch (supabaseError) {
+      console.log('Supabase auth failed, trying direct DB:', supabaseError.message);
+    }
+    
+    // Fallback to direct database
     const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
