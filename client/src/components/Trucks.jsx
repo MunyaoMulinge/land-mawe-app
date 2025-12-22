@@ -6,14 +6,28 @@ const API = API_BASE
 export default function Trucks() {
   const [trucks, setTrucks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ plate_number: '', model: '', capacity: '' })
 
   const fetchTrucks = () => {
+    console.log('Fetching trucks from:', `${API}/trucks`);
     fetch(`${API}/trucks`)
-      .then(r => r.json())
-      .then(data => { setTrucks(data); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then(r => {
+        console.log('Trucks response status:', r.status);
+        if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+        return r.json();
+      })
+      .then(data => { 
+        console.log('Trucks data:', data);
+        setTrucks(data); 
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching trucks:', err);
+        setError(err.message);
+        setLoading(false);
+      })
   }
 
   useEffect(() => { fetchTrucks() }, [])
@@ -40,6 +54,7 @@ export default function Trucks() {
   }
 
   if (loading) return <div className="loading">Loading trucks...</div>
+  if (error) return <div className="error">Error loading trucks: {error}</div>
 
   return (
     <div>
