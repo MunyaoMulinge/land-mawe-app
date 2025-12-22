@@ -58,6 +58,25 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
+    // Try Supabase client first, fallback to direct DB
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) throw error;
+      
+      res.json({ 
+        user: { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name },
+        token: 'supabase-' + data.user.id
+      });
+      return;
+    } catch (supabaseError) {
+      console.log('Supabase auth failed, trying direct DB:', supabaseError.message);
+    }
+    
+    // Fallback to direct database
     const result = await pool.query(
       'SELECT id, email, name, created_at FROM users WHERE email = $1 AND password = $2',
       [email, password]
