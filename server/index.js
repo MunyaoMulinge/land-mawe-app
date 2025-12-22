@@ -17,12 +17,19 @@ app.get('/api/test', async (req, res) => {
     console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
     console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
     
-    const result = await pool.query('SELECT NOW() as current_time');
-    console.log('Database connection successful:', result.rows[0]);
+    // Test Supabase client connection
+    const { data, error } = await supabase
+      .from('trucks')
+      .select('count(*)')
+      .limit(1);
+    
+    if (error) throw error;
+    
+    console.log('Supabase connection successful');
     res.json({ 
       success: true, 
-      message: 'Database connected successfully',
-      time: result.rows[0].current_time,
+      message: 'Supabase connected successfully',
+      method: 'supabase-client',
       env: {
         DATABASE_URL: !!process.env.DATABASE_URL,
         SUPABASE_URL: !!process.env.SUPABASE_URL,
@@ -130,11 +137,17 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/trucks', async (req, res) => {
   try {
     console.log('GET /api/trucks called');
-    console.log('Database URL exists:', !!process.env.DATABASE_URL);
-    console.log('Supabase URL exists:', !!process.env.SUPABASE_URL);
-    const result = await pool.query('SELECT * FROM trucks ORDER BY id');
-    console.log('Found', result.rows.length, 'trucks');
-    res.json(result.rows);
+    console.log('Using Supabase client');
+    
+    const { data, error } = await supabase
+      .from('trucks')
+      .select('*')
+      .order('id');
+    
+    if (error) throw error;
+    
+    console.log('Found', data.length, 'trucks');
+    res.json(data);
   } catch (err) {
     console.error('Error fetching trucks:', err);
     console.error('Error details:', err.message, err.code);
@@ -144,12 +157,27 @@ app.get('/api/trucks', async (req, res) => {
 
 app.get('/api/trucks/stats', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT status, COUNT(*) as count 
-      FROM trucks GROUP BY status
-    `);
-    res.json(result.rows);
+    const { data, error } = await supabase
+      .from('trucks')
+      .select('status');
+    
+    if (error) throw error;
+    
+    // Count by status
+    const stats = data.reduce((acc, truck) => {
+      acc[truck.status] = (acc[truck.status] || 0) + 1;
+      return acc;
+    }, {});
+    
+    // Convert to array format
+    const result = Object.entries(stats).map(([status, count]) => ({
+      status,
+      count: count.toString()
+    }));
+    
+    res.json(result);
   } catch (err) {
+    console.error('Error fetching truck stats:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -157,12 +185,17 @@ app.get('/api/trucks/stats', async (req, res) => {
 app.post('/api/trucks', async (req, res) => {
   const { plate_number, model, capacity } = req.body;
   try {
-    const result = await pool.query(
-      'INSERT INTO trucks (plate_number, model, capacity) VALUES ($1, $2, $3) RETURNING *',
-      [plate_number, model, capacity]
-    );
-    res.json(result.rows[0]);
+    const { data, error } = await supabase
+      .from('trucks')
+      .insert([{ plate_number, model, capacity }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.json(data);
   } catch (err) {
+    console.error('Error creating truck:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -170,12 +203,18 @@ app.post('/api/trucks', async (req, res) => {
 app.patch('/api/trucks/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
-    const result = await pool.query(
-      'UPDATE trucks SET status = $1 WHERE id = $2 RETURNING *',
-      [status, req.params.id]
-    );
-    res.json(result.rows[0]);
+    const { data, error } = await supabase
+      .from('trucks')
+      .update({ status })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.json(data);
   } catch (err) {
+    console.error('Error updating truck status:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -244,15 +283,28 @@ app.patch('/api/drivers/:id/checklist', async (req, res) => {
 // Bookings endpoints
 app.get('/api/bookings', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT b.*, t.plate_number, t.model, d.name as driver_name
-      FROM bookings b
-      LEFT JOIN trucks t ON b.truck_id = t.id
-      LEFT JOIN drivers d ON b.driver_id = d.id
-      ORDER BY b.start_date DESC
-    `);
-    res.json(result.rows);
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        drivers(name)
+      `)
+      .order('start_date', { ascending: false });
+    
+    if (error) throw error;
+    
+    // Transform the data to match the expected format
+    const transformedData = data.map(booking => ({
+      ...booking,
+      plate_number: booking.trucks?.plate_number,
+      model: booking.trucks?.model,
+      driver_name: booking.drivers?.name
+    }));
+    
+    res.json(transformedData);
   } catch (err) {
+    console.error('Error fetching bookings:', err);
     res.status(500).json({ error: err.message });
   }
 });
