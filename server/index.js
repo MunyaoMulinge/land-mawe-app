@@ -224,15 +224,30 @@ app.patch('/api/trucks/:id/status', async (req, res) => {
 // Drivers endpoints
 app.get('/api/drivers', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT d.*, oc.license_verified, oc.medical_check, oc.safety_training,
-             oc.vehicle_inspection, oc.insurance_verified, oc.contract_signed
-      FROM drivers d
-      LEFT JOIN onboarding_checklist oc ON d.id = oc.driver_id
-      ORDER BY d.id
-    `);
-    res.json(result.rows);
+    const { data, error } = await supabase
+      .from('drivers')
+      .select(`
+        *,
+        onboarding_checklist(*)
+      `)
+      .order('id');
+    
+    if (error) throw error;
+    
+    // Transform the data to match expected format
+    const transformedData = data.map(driver => ({
+      ...driver,
+      license_verified: driver.onboarding_checklist?.[0]?.license_verified || false,
+      medical_check: driver.onboarding_checklist?.[0]?.medical_check || false,
+      safety_training: driver.onboarding_checklist?.[0]?.safety_training || false,
+      vehicle_inspection: driver.onboarding_checklist?.[0]?.vehicle_inspection || false,
+      insurance_verified: driver.onboarding_checklist?.[0]?.insurance_verified || false,
+      contract_signed: driver.onboarding_checklist?.[0]?.contract_signed || false
+    }));
+    
+    res.json(transformedData);
   } catch (err) {
+    console.error('Error fetching drivers:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -240,16 +255,25 @@ app.get('/api/drivers', async (req, res) => {
 app.post('/api/drivers', async (req, res) => {
   const { name, phone, license_number } = req.body;
   try {
-    const result = await pool.query(
-      'INSERT INTO drivers (name, phone, license_number) VALUES ($1, $2, $3) RETURNING *',
-      [name, phone, license_number]
-    );
-    await pool.query(
-      'INSERT INTO onboarding_checklist (driver_id) VALUES ($1)',
-      [result.rows[0].id]
-    );
-    res.json(result.rows[0]);
+    // Insert driver
+    const { data: driverData, error: driverError } = await supabase
+      .from('drivers')
+      .insert([{ name, phone, license_number }])
+      .select()
+      .single();
+    
+    if (driverError) throw driverError;
+    
+    // Insert onboarding checklist
+    const { error: checklistError } = await supabase
+      .from('onboarding_checklist')
+      .insert([{ driver_id: driverData.id }]);
+    
+    if (checklistError) throw checklistError;
+    
+    res.json(driverData);
   } catch (err) {
+    console.error('Error creating driver:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -262,21 +286,44 @@ app.patch('/api/drivers/:id/checklist', async (req, res) => {
     return res.status(400).json({ error: 'Invalid field' });
   }
   try {
-    await pool.query(
-      `UPDATE onboarding_checklist SET ${field} = $1, updated_at = NOW() WHERE driver_id = $2`,
-      [value, req.params.id]
-    );
-    // Check if all items complete
-    const check = await pool.query(
-      `SELECT * FROM onboarding_checklist WHERE driver_id = $1`,
-      [req.params.id]
-    );
-    const row = check.rows[0];
-    const allComplete = row.license_verified && row.medical_check && row.safety_training &&
-                        row.vehicle_inspection && row.insurance_verified && row.contract_signed;
-    await pool.query('UPDATE drivers SET onboarding_complete = $1 WHERE id = $2', [allComplete, req.params.id]);
+    // Update the checklist field
+    const { error: updateError } = await supabase
+      .from('onboarding_checklist')
+      .update({ 
+        [field]: value,
+        updated_at: new Date().toISOString()
+      })
+      .eq('driver_id', req.params.id);
+    
+    if (updateError) throw updateError;
+    
+    // Check if all items are complete
+    const { data: checklistData, error: checkError } = await supabase
+      .from('onboarding_checklist')
+      .select('*')
+      .eq('driver_id', req.params.id)
+      .single();
+    
+    if (checkError) throw checkError;
+    
+    const allComplete = checklistData.license_verified && 
+                       checklistData.medical_check && 
+                       checklistData.safety_training &&
+                       checklistData.vehicle_inspection && 
+                       checklistData.insurance_verified && 
+                       checklistData.contract_signed;
+    
+    // Update driver onboarding_complete status
+    const { error: driverUpdateError } = await supabase
+      .from('drivers')
+      .update({ onboarding_complete: allComplete })
+      .eq('id', req.params.id);
+    
+    if (driverUpdateError) throw driverUpdateError;
+    
     res.json({ success: true, onboarding_complete: allComplete });
   } catch (err) {
+    console.error('Error updating checklist:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -313,14 +360,34 @@ app.get('/api/bookings', async (req, res) => {
 app.post('/api/bookings', async (req, res) => {
   const { truck_id, driver_id, event_name, location, start_date, end_date } = req.body;
   try {
-    const result = await pool.query(
-      `INSERT INTO bookings (truck_id, driver_id, event_name, location, start_date, end_date, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed') RETURNING *`,
-      [truck_id, driver_id, event_name, location, start_date, end_date]
-    );
-    await pool.query('UPDATE trucks SET status = $1 WHERE id = $2', ['booked', truck_id]);
-    res.json(result.rows[0]);
+    // Insert booking
+    const { data: bookingData, error: bookingError } = await supabase
+      .from('bookings')
+      .insert([{
+        truck_id,
+        driver_id,
+        event_name,
+        location,
+        start_date,
+        end_date,
+        status: 'confirmed'
+      }])
+      .select()
+      .single();
+    
+    if (bookingError) throw bookingError;
+    
+    // Update truck status
+    const { error: truckUpdateError } = await supabase
+      .from('trucks')
+      .update({ status: 'booked' })
+      .eq('id', truck_id);
+    
+    if (truckUpdateError) throw truckUpdateError;
+    
+    res.json(bookingData);
   } catch (err) {
+    console.error('Error creating booking:', err);
     res.status(500).json({ error: err.message });
   }
 });
