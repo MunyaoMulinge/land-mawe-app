@@ -9,6 +9,36 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Test endpoint to check database connection
+app.get('/api/test', async (req, res) => {
+  try {
+    console.log('Testing database connection...');
+    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+    console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
+    
+    const result = await pool.query('SELECT NOW() as current_time');
+    console.log('Database connection successful:', result.rows[0]);
+    res.json({ 
+      success: true, 
+      message: 'Database connected successfully',
+      time: result.rows[0].current_time,
+      env: {
+        DATABASE_URL: !!process.env.DATABASE_URL,
+        SUPABASE_URL: !!process.env.SUPABASE_URL,
+        SUPABASE_ANON_KEY: !!process.env.SUPABASE_ANON_KEY
+      }
+    });
+  } catch (err) {
+    console.error('Database connection failed:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message,
+      code: err.code 
+    });
+  }
+});
+
 // Auth endpoints
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name } = req.body;
@@ -100,11 +130,14 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/trucks', async (req, res) => {
   try {
     console.log('GET /api/trucks called');
+    console.log('Database URL exists:', !!process.env.DATABASE_URL);
+    console.log('Supabase URL exists:', !!process.env.SUPABASE_URL);
     const result = await pool.query('SELECT * FROM trucks ORDER BY id');
     console.log('Found', result.rows.length, 'trucks');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching trucks:', err);
+    console.error('Error details:', err.message, err.code);
     res.status(500).json({ error: err.message });
   }
 });
