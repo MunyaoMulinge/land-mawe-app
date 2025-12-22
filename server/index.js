@@ -17,10 +17,10 @@ app.get('/api/test', async (req, res) => {
     console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
     console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
     
-    // Test Supabase client connection
+    // Test Supabase client connection - simple select
     const { data, error } = await supabase
       .from('trucks')
-      .select('count(*)')
+      .select('id')
       .limit(1);
     
     if (error) throw error;
@@ -30,6 +30,7 @@ app.get('/api/test', async (req, res) => {
       success: true, 
       message: 'Supabase connected successfully',
       method: 'supabase-client',
+      trucksFound: data.length,
       env: {
         DATABASE_URL: !!process.env.DATABASE_URL,
         SUPABASE_URL: !!process.env.SUPABASE_URL,
@@ -163,13 +164,13 @@ app.get('/api/trucks/stats', async (req, res) => {
     
     if (error) throw error;
     
-    // Count by status
-    const stats = data.reduce((acc, truck) => {
-      acc[truck.status] = (acc[truck.status] || 0) + 1;
-      return acc;
-    }, {});
+    // Count by status manually since Supabase doesn't support GROUP BY in the JS client
+    const stats = {};
+    data.forEach(truck => {
+      stats[truck.status] = (stats[truck.status] || 0) + 1;
+    });
     
-    // Convert to array format
+    // Convert to array format expected by frontend
     const result = Object.entries(stats).map(([status, count]) => ({
       status,
       count: count.toString()
