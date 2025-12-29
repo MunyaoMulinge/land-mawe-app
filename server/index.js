@@ -1011,6 +1011,336 @@ app.get('/api/job-cards/stats/summary', async (req, res) => {
   }
 });
 
+// ============ INSURANCE & COMPLIANCE ENDPOINTS ============
+
+// Get document types
+app.get('/api/document-types', async (req, res) => {
+  const { category } = req.query;
+  
+  try {
+    let query = supabase
+      .from('document_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('category')
+      .order('name');
+    
+    if (category) query = query.eq('category', category);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching document types:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all truck documents
+app.get('/api/truck-documents', async (req, res) => {
+  const { truck_id, status, category, expiring_soon } = req.query;
+  
+  try {
+    let query = supabase
+      .from('truck_documents')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        document_types(name, category, is_mandatory),
+        creator:created_by(name)
+      `)
+      .order('expiry_date');
+    
+    if (truck_id) query = query.eq('truck_id', truck_id);
+    if (status) query = query.eq('status', status);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    let transformed = data.map(doc => ({
+      ...doc,
+      truck_plate: doc.trucks?.plate_number,
+      truck_model: doc.trucks?.model,
+      document_type_name: doc.document_types?.name,
+      category: doc.document_types?.category,
+      is_mandatory: doc.document_types?.is_mandatory,
+      created_by_name: doc.creator?.name,
+      days_until_expiry: Math.ceil((new Date(doc.expiry_date) - new Date()) / (1000 * 60 * 60 * 24))
+    }));
+    
+    // Filter by category if provided
+    if (category) {
+      transformed = transformed.filter(d => d.category === category);
+    }
+    
+    // Filter expiring soon (within 30 days)
+    if (expiring_soon === 'true') {
+      transformed = transformed.filter(d => d.days_until_expiry <= 30 && d.days_until_expiry > 0);
+    }
+    
+    res.json(transformed);
+  } catch (err) {
+    console.error('Error fetching truck documents:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get compliance dashboard stats
+app.get('/api/compliance/stats', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('truck_documents')
+      .select('status, expiry_date, document_types(is_mandatory)');
+    
+    if (error) throw error;
+    
+    const today = new Date();
+    const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    const stats = {
+      total: data.length,
+      active: data.filter(d => d.status === 'active').length,
+      expired: data.filter(d => d.status === 'expired' || new Date(d.expiry_date) < today).length,
+      expiring_soon: data.filter(d => {
+        const expiry = new Date(d.expiry_date);
+        return expiry >= today && expiry <= thirtyDays;
+      }).length,
+      mandatory_expired: data.filter(d => 
+        d.document_types?.is_mandatory && 
+        (d.status === 'expired' || new Date(d.expiry_date) < today)
+      ).length
+    };
+    
+    res.json(stats);
+  } catch (err) {
+    console.error('Error fetching compliance stats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get expired and expiring documents
+app.get('/api/compliance/alerts', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Get expired
+    const { data: expired, error: expiredError } = await supabase
+      .from('truck_documents')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        document_types(name, category, is_mandatory)
+      `)
+      .lt('expiry_date', today)
+      .order('expiry_date');
+    
+    if (expiredError) throw expiredError;
+    
+    // Get expiring soon
+    const { data: expiring, error: expiringError } = await supabase
+      .from('truck_documents')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        document_types(name, category, is_mandatory)
+      `)
+      .gte('expiry_date', today)
+      .lte('expiry_date', thirtyDays)
+      .order('expiry_date');
+    
+    if (expiringError) throw expiringError;
+    
+    const transform = (docs) => docs.map(doc => ({
+      ...doc,
+      truck_plate: doc.trucks?.plate_number,
+      truck_model: doc.trucks?.model,
+      document_type_name: doc.document_types?.name,
+      category: doc.document_types?.category,
+      is_mandatory: doc.document_types?.is_mandatory,
+      days_until_expiry: Math.ceil((new Date(doc.expiry_date) - new Date()) / (1000 * 60 * 60 * 24))
+    }));
+    
+    res.json({
+      expired: transform(expired),
+      expiring_soon: transform(expiring)
+    });
+  } catch (err) {
+    console.error('Error fetching compliance alerts:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create truck document
+app.post('/api/truck-documents', async (req, res) => {
+  const { 
+    truck_id, document_type_id, document_number, provider,
+    issue_date, expiry_date, cost, coverage_amount, coverage_type, notes
+  } = req.body;
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    const { data, error } = await supabase
+      .from('truck_documents')
+      .insert([{
+        truck_id,
+        document_type_id,
+        document_number,
+        provider,
+        issue_date,
+        expiry_date,
+        cost,
+        coverage_amount,
+        coverage_type,
+        notes,
+        status: 'active',
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    await logActivity(userId, 'DOCUMENT_CREATED', 'truck_document', data.id, { truck_id, document_type_id });
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error creating truck document:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update truck document
+app.patch('/api/truck-documents/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const updates = req.body;
+  
+  try {
+    updates.updated_at = new Date().toISOString();
+    updates.updated_by = userId;
+    
+    const { data, error } = await supabase
+      .from('truck_documents')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    await logActivity(userId, 'DOCUMENT_UPDATED', 'truck_document', data.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating truck document:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Renew document (create new with reference to old)
+app.post('/api/truck-documents/:id/renew', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { expiry_date, cost, document_number, notes } = req.body;
+  
+  try {
+    // Get old document
+    const { data: oldDoc, error: fetchError } = await supabase
+      .from('truck_documents')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Mark old as expired
+    await supabase
+      .from('truck_documents')
+      .update({ status: 'expired', updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+    
+    // Create new document
+    const { data: newDoc, error: createError } = await supabase
+      .from('truck_documents')
+      .insert([{
+        truck_id: oldDoc.truck_id,
+        document_type_id: oldDoc.document_type_id,
+        document_number: document_number || oldDoc.document_number,
+        provider: oldDoc.provider,
+        issue_date: new Date().toISOString().split('T')[0],
+        expiry_date,
+        cost,
+        coverage_amount: oldDoc.coverage_amount,
+        coverage_type: oldDoc.coverage_type,
+        notes,
+        status: 'active',
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (createError) throw createError;
+    
+    await logActivity(userId, 'DOCUMENT_RENEWED', 'truck_document', newDoc.id, { old_id: req.params.id });
+    
+    res.json(newDoc);
+  } catch (err) {
+    console.error('Error renewing document:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete truck document
+app.delete('/api/truck-documents/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    const { error } = await supabase
+      .from('truck_documents')
+      .delete()
+      .eq('id', req.params.id);
+    
+    if (error) throw error;
+    
+    await logActivity(userId, 'DOCUMENT_DELETED', 'truck_document', req.params.id);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting document:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get compliance status by truck
+app.get('/api/trucks/:id/compliance', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('truck_documents')
+      .select(`
+        *,
+        document_types(name, category, is_mandatory)
+      `)
+      .eq('truck_id', req.params.id)
+      .order('expiry_date');
+    
+    if (error) throw error;
+    
+    const today = new Date();
+    const transformed = data.map(doc => ({
+      ...doc,
+      document_type_name: doc.document_types?.name,
+      category: doc.document_types?.category,
+      is_mandatory: doc.document_types?.is_mandatory,
+      days_until_expiry: Math.ceil((new Date(doc.expiry_date) - today) / (1000 * 60 * 60 * 24)),
+      is_expired: new Date(doc.expiry_date) < today
+    }));
+    
+    res.json(transformed);
+  } catch (err) {
+    console.error('Error fetching truck compliance:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ MAINTENANCE ENDPOINTS ============
 
 // Get service types
