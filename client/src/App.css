@@ -356,3 +356,62 @@ tr:hover { background: #f8f9fa; }
     padding: 1rem;
   }
 }
+
+
+/* Additional badge styles for roles */
+.badge.admin { background: #e8d4f8; color: #6b21a8; }
+.badge.staff { background: #dbeafe; color: #1e40af; }
+
+/* Small button styles */
+.btn-small {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.btn-danger { background: #e74c3c; color: white; }
+.btn-danger:hover { background: #c0392b; }
+
+/* Activity log styles */
+.activity-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+/* Form improvements */
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+/* Table improvements */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e1e5eb;
+}
+
+th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+tr:hover {
+  background: #f8f9fa;
+}
+
+/* Scrollable containers */
+.scrollable {
+  max-height: 600px;
+  overflow-y: auto;
+}

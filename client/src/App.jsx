@@ -4,6 +4,8 @@ import Dashboard from './components/Dashboard'
 import Trucks from './components/Trucks'
 import Drivers from './components/Drivers'
 import Bookings from './components/Bookings'
+import Users from './components/Users'
+import ActivityLogs from './components/ActivityLogs'
 import './App.css'
 
 function App() {
@@ -23,16 +25,27 @@ function App() {
     setUser(null)
   }
 
-  if (!user) {
-    return <Auth onLogin={setUser} />
+  const handleLogin = (userData) => {
+    setUser(userData)
+    localStorage.setItem('user', JSON.stringify(userData))
   }
 
-  const tabs = [
-    { id: 'dashboard', label: '📊 Dashboard' },
-    { id: 'trucks', label: '🚛 Trucks' },
-    { id: 'drivers', label: '👤 Drivers' },
-    { id: 'bookings', label: '📅 Bookings' }
+  if (!user) {
+    return <Auth onLogin={handleLogin} />
+  }
+
+  // Define tabs based on user role
+  const baseTabs = [
+    { id: 'dashboard', label: '📊 Dashboard', roles: ['admin', 'staff'] },
+    { id: 'trucks', label: '🚛 Trucks', roles: ['admin', 'staff'] },
+    { id: 'drivers', label: '👤 Drivers', roles: ['admin', 'staff'] },
+    { id: 'bookings', label: '📅 Bookings', roles: ['admin', 'staff'] },
+    { id: 'users', label: '👥 Users', roles: ['admin'] },
+    { id: 'activity', label: '📋 Activity', roles: ['admin'] }
   ]
+
+  // Filter tabs based on user role
+  const tabs = baseTabs.filter(tab => tab.roles.includes(user.role || 'staff'))
 
   return (
     <div className="app">
@@ -42,7 +55,17 @@ function App() {
           <p>Truck Tracking Admin Portal</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ opacity: 0.9 }}>Welcome, {user.name || user.email}</span>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ opacity: 0.9 }}>Welcome, {user.name || user.email}</span>
+            <span style={{ 
+              display: 'block', 
+              fontSize: '0.75rem', 
+              opacity: 0.7,
+              textTransform: 'capitalize'
+            }}>
+              {user.role === 'admin' ? '👑 Admin' : '👤 Staff'}
+            </span>
+          </div>
           <button 
             onClick={handleLogout}
             style={{ 
@@ -74,6 +97,8 @@ function App() {
         {activeTab === 'trucks' && <Trucks />}
         {activeTab === 'drivers' && <Drivers />}
         {activeTab === 'bookings' && <Bookings />}
+        {activeTab === 'users' && user.role === 'admin' && <Users currentUser={user} />}
+        {activeTab === 'activity' && user.role === 'admin' && <ActivityLogs currentUser={user} />}
       </main>
     </div>
   )

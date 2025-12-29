@@ -9,6 +9,48 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Helper function to log activity
+async function logActivity(userId, action, entityType = null, entityId = null, details = null) {
+  try {
+    await supabase
+      .from('activity_logs')
+      .insert([{
+        user_id: userId,
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        details
+      }]);
+  } catch (err) {
+    console.error('Failed to log activity:', err);
+  }
+}
+
+// Middleware to check if user is admin
+const requireAdmin = async (req, res, next) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (error || !data || data.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    req.user = { id: userId, role: data.role };
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Authorization check failed' });
+  }
+};
+
 // Test endpoint to check database connection
 app.get('/api/test', async (req, res) => {
   try {
@@ -49,43 +91,48 @@ app.get('/api/test', async (req, res) => {
 
 // Auth endpoints
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password, name, phone } = req.body;
   try {
-    // Try Supabase client first, fallback to direct DB
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { name }
-        }
-      });
-      
-      if (error) throw error;
-      
-      res.json({ 
-        user: { id: data.user.id, email: data.user.email, name },
-        token: 'supabase-' + data.user.id
-      });
-      return;
-    } catch (supabaseError) {
-      console.log('Supabase auth failed, trying direct DB:', supabaseError.message);
-    }
+    // Check if email already exists
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
     
-    // Fallback to direct database
-    const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (existing.rows.length > 0) {
+    if (existing) {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
-    const result = await pool.query(
-      'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id, email, name, created_at',
-      [email, password, name]
-    );
+    // Check if this is the first user (make them admin)
+    const { data: allUsers } = await supabase
+      .from('users')
+      .select('id')
+      .limit(1);
+    
+    const isFirstUser = !allUsers || allUsers.length === 0;
+    
+    // Insert new user
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([{ 
+        email, 
+        password, 
+        name, 
+        phone,
+        role: isFirstUser ? 'admin' : 'staff'
+      }])
+      .select('id, email, name, role, phone, created_at')
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(newUser.id, 'USER_REGISTERED', 'user', newUser.id, { email });
     
     res.json({ 
-      user: result.rows[0],
-      token: 'demo-token-' + result.rows[0].id
+      user: newUser,
+      token: 'token-' + newUser.id
     });
   } catch (err) {
     console.error('Registration error:', err);
@@ -96,37 +143,27 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    // Try Supabase client first, fallback to direct DB
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      
-      if (error) throw error;
-      
-      res.json({ 
-        user: { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name },
-        token: 'supabase-' + data.user.id
-      });
-      return;
-    } catch (supabaseError) {
-      console.log('Supabase auth failed, trying direct DB:', supabaseError.message);
-    }
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, name, role, phone, is_active, created_at')
+      .eq('email', email)
+      .eq('password', password)
+      .single();
     
-    // Fallback to direct database
-    const result = await pool.query(
-      'SELECT id, email, name, created_at FROM users WHERE email = $1 AND password = $2',
-      [email, password]
-    );
-    
-    if (result.rows.length === 0) {
+    if (error || !user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Account is deactivated. Contact admin.' });
+    }
+    
+    // Log activity
+    await logActivity(user.id, 'USER_LOGIN', 'user', user.id);
+    
     res.json({ 
-      user: result.rows[0],
-      token: 'demo-token-' + result.rows[0].id
+      user,
+      token: 'token-' + user.id
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -388,6 +425,204 @@ app.post('/api/bookings', async (req, res) => {
     res.json(bookingData);
   } catch (err) {
     console.error('Error creating booking:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ USER MANAGEMENT ENDPOINTS (Admin Only) ============
+
+// Get all users
+app.get('/api/users', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, name, role, phone, is_active, created_at, updated_at')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single user
+app.get('/api/users/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, name, role, phone, is_active, created_at, updated_at')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (error) throw error;
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching user:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create new user (admin only)
+app.post('/api/users', async (req, res) => {
+  const { email, password, name, phone, role } = req.body;
+  const adminId = req.headers['x-user-id'];
+  
+  try {
+    // Check if email already exists
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+    
+    if (existing) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+    
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([{ 
+        email, 
+        password, 
+        name, 
+        phone,
+        role: role || 'staff'
+      }])
+      .select('id, email, name, role, phone, is_active, created_at')
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(adminId, 'USER_CREATED', 'user', newUser.id, { email, role: newUser.role });
+    
+    res.json(newUser);
+  } catch (err) {
+    console.error('Error creating user:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update user
+app.patch('/api/users/:id', async (req, res) => {
+  const { name, phone, role, is_active } = req.body;
+  const adminId = req.headers['x-user-id'];
+  
+  try {
+    const updateData = { updated_at: new Date().toISOString() };
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (role !== undefined) updateData.role = role;
+    if (is_active !== undefined) updateData.is_active = is_active;
+    
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', req.params.id)
+      .select('id, email, name, role, phone, is_active, created_at, updated_at')
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(adminId, 'USER_UPDATED', 'user', data.id, updateData);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Toggle user active status
+app.patch('/api/users/:id/toggle-active', async (req, res) => {
+  const adminId = req.headers['x-user-id'];
+  
+  try {
+    // Get current status
+    const { data: currentUser, error: fetchError } = await supabase
+      .from('users')
+      .select('is_active')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Toggle status
+    const { data, error } = await supabase
+      .from('users')
+      .update({ 
+        is_active: !currentUser.is_active,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select('id, email, name, role, phone, is_active')
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(adminId, data.is_active ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', 'user', data.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error toggling user status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ ACTIVITY LOGS ENDPOINTS ============
+
+// Get activity logs (admin only)
+app.get('/api/activity-logs', async (req, res) => {
+  const { limit = 50, offset = 0, user_id, action } = req.query;
+  
+  try {
+    let query = supabase
+      .from('activity_logs')
+      .select(`
+        *,
+        users(name, email)
+      `)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (user_id) query = query.eq('user_id', user_id);
+    if (action) query = query.eq('action', action);
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching activity logs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get activity log stats
+app.get('/api/activity-logs/stats', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .select('action');
+    
+    if (error) throw error;
+    
+    // Count by action
+    const stats = {};
+    data.forEach(log => {
+      stats[log.action] = (stats[log.action] || 0) + 1;
+    });
+    
+    res.json(stats);
+  } catch (err) {
+    console.error('Error fetching activity stats:', err);
     res.status(500).json({ error: err.message });
   }
 });
