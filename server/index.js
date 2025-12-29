@@ -1011,6 +1011,366 @@ app.get('/api/job-cards/stats/summary', async (req, res) => {
   }
 });
 
+// ============ CLIENT & INVOICE ENDPOINTS ============
+
+// Get all clients
+app.get('/api/clients', async (req, res) => {
+  const { search, is_active } = req.query;
+  
+  try {
+    let query = supabase
+      .from('clients')
+      .select('*')
+      .order('name');
+    
+    if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
+    if (search) query = query.ilike('name', `%${search}%`);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching clients:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single client
+app.get('/api/clients/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching client:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create client
+app.post('/api/clients', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { name, contact_person, email, phone, address, city, company_type, tax_pin, payment_terms, credit_limit, notes } = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .insert([{
+        name, contact_person, email, phone, address, city,
+        company_type, tax_pin, payment_terms, credit_limit, notes,
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    await logActivity(userId, 'CLIENT_CREATED', 'client', data.id, { name });
+    res.json(data);
+  } catch (err) {
+    console.error('Error creating client:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update client
+app.patch('/api/clients/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const updates = req.body;
+  updates.updated_at = new Date().toISOString();
+  
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    await logActivity(userId, 'CLIENT_UPDATED', 'client', data.id);
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating client:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all invoices
+app.get('/api/invoices', async (req, res) => {
+  const { client_id, status, from_date, to_date } = req.query;
+  
+  try {
+    let query = supabase
+      .from('invoices')
+      .select(`
+        *,
+        clients(name, email, phone),
+        creator:created_by(name),
+        invoice_items(*)
+      `)
+      .order('invoice_date', { ascending: false });
+    
+    if (client_id) query = query.eq('client_id', client_id);
+    if (status) query = query.eq('status', status);
+    if (from_date) query = query.gte('invoice_date', from_date);
+    if (to_date) query = query.lte('invoice_date', to_date);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    const transformed = data.map(inv => ({
+      ...inv,
+      client_name: inv.clients?.name,
+      client_email: inv.clients?.email,
+      client_phone: inv.clients?.phone,
+      created_by_name: inv.creator?.name,
+      items_count: inv.invoice_items?.length || 0
+    }));
+    
+    res.json(transformed);
+  } catch (err) {
+    console.error('Error fetching invoices:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get invoice stats
+app.get('/api/invoices/stats', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('status, total_amount, amount_paid, balance_due');
+    
+    if (error) throw error;
+    
+    const stats = {
+      total: data.length,
+      draft: data.filter(i => i.status === 'draft').length,
+      sent: data.filter(i => i.status === 'sent').length,
+      paid: data.filter(i => i.status === 'paid').length,
+      overdue: data.filter(i => i.status === 'overdue').length,
+      total_invoiced: data.reduce((sum, i) => sum + parseFloat(i.total_amount || 0), 0),
+      total_paid: data.reduce((sum, i) => sum + parseFloat(i.amount_paid || 0), 0),
+      total_outstanding: data.reduce((sum, i) => sum + parseFloat(i.balance_due || 0), 0)
+    };
+    
+    res.json(stats);
+  } catch (err) {
+    console.error('Error fetching invoice stats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single invoice with items
+app.get('/api/invoices/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select(`
+        *,
+        clients(*),
+        invoice_items(*),
+        payments(*)
+      `)
+      .eq('id', req.params.id)
+      .single();
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching invoice:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create invoice
+app.post('/api/invoices', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { client_id, booking_id, job_card_id, invoice_date, due_date, items, notes, terms, tax_rate } = req.body;
+  
+  try {
+    // Generate invoice number
+    const yearMonth = new Date().toISOString().slice(2, 4) + new Date().toISOString().slice(5, 7);
+    const { data: lastInvoice } = await supabase
+      .from('invoices')
+      .select('invoice_number')
+      .ilike('invoice_number', `INV-${yearMonth}%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1);
+    
+    let seqNum = 1;
+    if (lastInvoice && lastInvoice.length > 0) {
+      const lastNum = parseInt(lastInvoice[0].invoice_number.split('-')[2]) || 0;
+      seqNum = lastNum + 1;
+    }
+    const invoice_number = `INV-${yearMonth}-${String(seqNum).padStart(4, '0')}`;
+    
+    // Calculate totals
+    const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.unit_price)), 0);
+    const taxRateNum = parseFloat(tax_rate) || 16;
+    const tax_amount = subtotal * (taxRateNum / 100);
+    const total_amount = subtotal + tax_amount;
+    
+    // Create invoice
+    const { data: invoice, error: invoiceError } = await supabase
+      .from('invoices')
+      .insert([{
+        invoice_number,
+        client_id,
+        booking_id,
+        job_card_id,
+        invoice_date,
+        due_date,
+        subtotal,
+        tax_rate: taxRateNum,
+        tax_amount,
+        total_amount,
+        balance_due: total_amount,
+        notes,
+        terms,
+        status: 'draft',
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (invoiceError) throw invoiceError;
+    
+    // Create invoice items
+    if (items && items.length > 0) {
+      const invoiceItems = items.map(item => ({
+        invoice_id: invoice.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        amount: parseFloat(item.quantity) * parseFloat(item.unit_price),
+        truck_id: item.truck_id
+      }));
+      
+      const { error: itemsError } = await supabase
+        .from('invoice_items')
+        .insert(invoiceItems);
+      
+      if (itemsError) throw itemsError;
+    }
+    
+    await logActivity(userId, 'INVOICE_CREATED', 'invoice', invoice.id, { invoice_number, total_amount });
+    res.json(invoice);
+  } catch (err) {
+    console.error('Error creating invoice:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update invoice status
+app.patch('/api/invoices/:id/status', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { status } = req.body;
+  
+  try {
+    const updates = { status, updated_at: new Date().toISOString() };
+    if (status === 'sent') updates.sent_at = new Date().toISOString();
+    if (status === 'paid') updates.paid_at = new Date().toISOString();
+    
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    await logActivity(userId, `INVOICE_${status.toUpperCase()}`, 'invoice', data.id);
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating invoice status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Record payment
+app.post('/api/invoices/:id/payment', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { amount, payment_date, payment_method, reference_number, notes } = req.body;
+  
+  try {
+    // Get current invoice
+    const { data: invoice, error: fetchError } = await supabase
+      .from('invoices')
+      .select('total_amount, amount_paid')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Create payment record
+    const { error: paymentError } = await supabase
+      .from('payments')
+      .insert([{
+        invoice_id: req.params.id,
+        amount,
+        payment_date,
+        payment_method,
+        reference_number,
+        notes,
+        received_by: userId
+      }]);
+    
+    if (paymentError) throw paymentError;
+    
+    // Update invoice
+    const newAmountPaid = parseFloat(invoice.amount_paid || 0) + parseFloat(amount);
+    const newBalance = parseFloat(invoice.total_amount) - newAmountPaid;
+    const newStatus = newBalance <= 0 ? 'paid' : 'partial';
+    
+    const { data, error: updateError } = await supabase
+      .from('invoices')
+      .update({
+        amount_paid: newAmountPaid,
+        balance_due: Math.max(0, newBalance),
+        status: newStatus,
+        payment_method,
+        payment_reference: reference_number,
+        payment_date,
+        paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (updateError) throw updateError;
+    
+    await logActivity(userId, 'PAYMENT_RECEIVED', 'invoice', data.id, { amount, payment_method });
+    res.json(data);
+  } catch (err) {
+    console.error('Error recording payment:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get client invoices
+app.get('/api/clients/:id/invoices', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('client_id', req.params.id)
+      .order('invoice_date', { ascending: false });
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching client invoices:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ INSURANCE & COMPLIANCE ENDPOINTS ============
 
 // Get document types
