@@ -6,6 +6,7 @@ import Drivers from './components/Drivers'
 import Bookings from './components/Bookings'
 import JobCards from './components/JobCards'
 import Fuel from './components/Fuel'
+import Maintenance from './components/Maintenance'
 import Users from './components/Users'
 import ActivityLogs from './components/ActivityLogs'
 import './App.css'
@@ -43,6 +44,7 @@ function App() {
     { id: 'drivers', label: '👤 Drivers', roles: ['admin', 'staff'] },
     { id: 'jobcards', label: '📋 Job Cards', roles: ['admin', 'staff'] },
     { id: 'fuel', label: '⛽ Fuel', roles: ['admin', 'staff'] },
+    { id: 'maintenance', label: '🔧 Maintenance', roles: ['admin', 'staff'] },
     { id: 'bookings', label: '📅 Bookings', roles: ['admin', 'staff'] },
     { id: 'users', label: '👥 Users', roles: ['admin'] },
     { id: 'activity', label: '📋 Activity', roles: ['admin'] }
@@ -102,6 +104,7 @@ function App() {
         {activeTab === 'drivers' && <Drivers />}
         {activeTab === 'jobcards' && <JobCards currentUser={user} />}
         {activeTab === 'fuel' && <Fuel currentUser={user} />}
+        {activeTab === 'maintenance' && <Maintenance currentUser={user} />}
         {activeTab === 'bookings' && <Bookings />}
         {activeTab === 'users' && user.role === 'admin' && <Users currentUser={user} />}
         {activeTab === 'activity' && user.role === 'admin' && <ActivityLogs currentUser={user} />}

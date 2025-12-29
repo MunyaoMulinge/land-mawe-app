@@ -1011,6 +1011,311 @@ app.get('/api/job-cards/stats/summary', async (req, res) => {
   }
 });
 
+// ============ MAINTENANCE ENDPOINTS ============
+
+// Get service types
+app.get('/api/service-types', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('service_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('name');
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching service types:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all maintenance records
+app.get('/api/maintenance', async (req, res) => {
+  const { truck_id, status, from_date, to_date } = req.query;
+  
+  try {
+    let query = supabase
+      .from('maintenance_records')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        service_types(name),
+        assignee:assigned_to(name),
+        completer:completed_by(name),
+        creator:created_by(name)
+      `)
+      .order('service_date', { ascending: false });
+    
+    if (truck_id) query = query.eq('truck_id', truck_id);
+    if (status) query = query.eq('status', status);
+    if (from_date) query = query.gte('service_date', from_date);
+    if (to_date) query = query.lte('service_date', to_date);
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    const transformed = data.map(record => ({
+      ...record,
+      truck_plate: record.trucks?.plate_number,
+      truck_model: record.trucks?.model,
+      service_type_name: record.service_types?.name,
+      assigned_to_name: record.assignee?.name,
+      completed_by_name: record.completer?.name,
+      created_by_name: record.creator?.name
+    }));
+    
+    res.json(transformed);
+  } catch (err) {
+    console.error('Error fetching maintenance records:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get maintenance stats
+app.get('/api/maintenance/stats', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('maintenance_records')
+      .select('status, total_cost');
+    
+    if (error) throw error;
+    
+    const stats = {
+      total: data.length,
+      scheduled: data.filter(r => r.status === 'scheduled').length,
+      in_progress: data.filter(r => r.status === 'in_progress').length,
+      completed: data.filter(r => r.status === 'completed').length,
+      total_cost: data.reduce((sum, r) => sum + parseFloat(r.total_cost || 0), 0)
+    };
+    
+    res.json(stats);
+  } catch (err) {
+    console.error('Error fetching maintenance stats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get upcoming/overdue maintenance
+app.get('/api/maintenance/upcoming', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const nextMonth = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Get trucks with their maintenance info
+    const { data: trucks, error: trucksError } = await supabase
+      .from('trucks')
+      .select('id, plate_number, model, current_mileage, next_service_date, next_service_mileage');
+    
+    if (trucksError) throw trucksError;
+    
+    // Get scheduled maintenance
+    const { data: scheduled, error: schedError } = await supabase
+      .from('maintenance_records')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        service_types(name)
+      `)
+      .eq('status', 'scheduled')
+      .lte('service_date', nextMonth)
+      .order('service_date');
+    
+    if (schedError) throw schedError;
+    
+    // Categorize
+    const upcoming = [];
+    const overdue = [];
+    
+    scheduled.forEach(record => {
+      const item = {
+        ...record,
+        truck_plate: record.trucks?.plate_number,
+        truck_model: record.trucks?.model,
+        service_type_name: record.service_types?.name
+      };
+      
+      if (record.service_date < today) {
+        overdue.push(item);
+      } else {
+        upcoming.push(item);
+      }
+    });
+    
+    res.json({ upcoming, overdue, trucks_needing_service: trucks.filter(t => t.next_service_date && t.next_service_date <= nextMonth) });
+  } catch (err) {
+    console.error('Error fetching upcoming maintenance:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create maintenance record
+app.post('/api/maintenance', async (req, res) => {
+  const { 
+    truck_id, service_type_id, service_date, description, mileage_at_service,
+    parts_cost, labor_cost, vendor_name, vendor_contact, invoice_number,
+    assigned_to, next_service_km, next_service_date, notes, status
+  } = req.body;
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    const total_cost = parseFloat(parts_cost || 0) + parseFloat(labor_cost || 0);
+    
+    const { data, error } = await supabase
+      .from('maintenance_records')
+      .insert([{
+        truck_id,
+        service_type_id,
+        service_date,
+        description,
+        mileage_at_service,
+        parts_cost: parts_cost || 0,
+        labor_cost: labor_cost || 0,
+        total_cost,
+        vendor_name,
+        vendor_contact,
+        invoice_number,
+        assigned_to,
+        next_service_km,
+        next_service_date,
+        notes,
+        status: status || 'scheduled',
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(userId, 'MAINTENANCE_CREATED', 'maintenance', data.id, { truck_id, description });
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error creating maintenance record:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update maintenance record
+app.patch('/api/maintenance/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const updates = req.body;
+  
+  try {
+    // Recalculate total cost if parts or labor changed
+    if (updates.parts_cost !== undefined || updates.labor_cost !== undefined) {
+      const { data: current } = await supabase
+        .from('maintenance_records')
+        .select('parts_cost, labor_cost')
+        .eq('id', req.params.id)
+        .single();
+      
+      const parts = updates.parts_cost !== undefined ? updates.parts_cost : current.parts_cost;
+      const labor = updates.labor_cost !== undefined ? updates.labor_cost : current.labor_cost;
+      updates.total_cost = parseFloat(parts || 0) + parseFloat(labor || 0);
+    }
+    
+    updates.updated_at = new Date().toISOString();
+    
+    const { data, error } = await supabase
+      .from('maintenance_records')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    await logActivity(userId, 'MAINTENANCE_UPDATED', 'maintenance', data.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating maintenance record:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete maintenance
+app.patch('/api/maintenance/:id/complete', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { next_service_km, next_service_date, notes } = req.body;
+  
+  try {
+    // Get the maintenance record
+    const { data: record, error: fetchError } = await supabase
+      .from('maintenance_records')
+      .select('truck_id, mileage_at_service, service_date')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Update maintenance record
+    const { data, error } = await supabase
+      .from('maintenance_records')
+      .update({
+        status: 'completed',
+        completed_by: userId,
+        completed_at: new Date().toISOString(),
+        next_service_km,
+        next_service_date,
+        notes: notes || undefined,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Update truck's maintenance info
+    await supabase
+      .from('trucks')
+      .update({
+        last_service_date: record.service_date,
+        last_service_mileage: record.mileage_at_service,
+        next_service_date,
+        next_service_mileage: next_service_km
+      })
+      .eq('id', record.truck_id);
+    
+    await logActivity(userId, 'MAINTENANCE_COMPLETED', 'maintenance', data.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error completing maintenance:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get maintenance history for a truck
+app.get('/api/trucks/:id/maintenance', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('maintenance_records')
+      .select(`
+        *,
+        service_types(name)
+      `)
+      .eq('truck_id', req.params.id)
+      .order('service_date', { ascending: false });
+    
+    if (error) throw error;
+    
+    const transformed = data.map(r => ({
+      ...r,
+      service_type_name: r.service_types?.name
+    }));
+    
+    res.json(transformed);
+  } catch (err) {
+    console.error('Error fetching truck maintenance history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ FUEL MANAGEMENT ENDPOINTS ============
 
 // Get all fuel records
