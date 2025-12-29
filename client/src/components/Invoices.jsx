@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { jsPDF } from 'jspdf'
 import { API_BASE } from '../config'
 
 export default function Invoices({ currentUser }) {
@@ -200,6 +201,133 @@ export default function Invoices({ currentUser }) {
     }
   }
 
+  const generatePDF = async (invoice) => {
+    try {
+      // Fetch full invoice details if needed
+      let inv = invoice
+      if (!invoice.invoice_items) {
+        const res = await fetch(`${API_BASE}/invoices/${invoice.id}`)
+        inv = await res.json()
+      }
+
+      const doc = new jsPDF()
+      const pageWidth = doc.internal.pageSize.getWidth()
+      
+      // Header
+      doc.setFontSize(24)
+      doc.setTextColor(44, 62, 80)
+      doc.text('INVOICE', 20, 25)
+      
+      // Company Info (right side)
+      doc.setFontSize(10)
+      doc.setTextColor(100)
+      doc.text('Land Mawe Fleet Services', pageWidth - 20, 20, { align: 'right' })
+      doc.text('Nairobi, Kenya', pageWidth - 20, 26, { align: 'right' })
+      
+      // Invoice details
+      doc.setFontSize(11)
+      doc.setTextColor(44, 62, 80)
+      doc.text(`Invoice #: ${inv.invoice_number}`, 20, 45)
+      doc.text(`Date: ${new Date(inv.invoice_date).toLocaleDateString()}`, 20, 52)
+      doc.text(`Due Date: ${new Date(inv.due_date).toLocaleDateString()}`, 20, 59)
+      
+      // Status badge
+      const statusColors = { draft: [108,117,125], sent: [0,123,255], paid: [40,167,69], overdue: [220,53,69], partial: [255,193,7] }
+      const statusColor = statusColors[inv.status] || [108,117,125]
+      doc.setFillColor(...statusColor)
+      doc.roundedRect(pageWidth - 50, 40, 30, 8, 2, 2, 'F')
+      doc.setTextColor(255)
+      doc.setFontSize(8)
+      doc.text(inv.status.toUpperCase(), pageWidth - 35, 45.5, { align: 'center' })
+      
+      // Bill To
+      doc.setFontSize(11)
+      doc.setTextColor(44, 62, 80)
+      doc.text('Bill To:', 20, 75)
+      doc.setFontSize(10)
+      doc.setTextColor(60)
+      doc.text(inv.clients?.name || 'N/A', 20, 82)
+      if (inv.clients?.address) doc.text(inv.clients.address, 20, 88)
+      if (inv.clients?.city) doc.text(inv.clients.city, 20, 94)
+      if (inv.clients?.email) doc.text(inv.clients.email, 20, 100)
+      if (inv.clients?.phone) doc.text(inv.clients.phone, 20, 106)
+      
+      // Table header
+      let y = 120
+      doc.setFillColor(44, 62, 80)
+      doc.rect(20, y, pageWidth - 40, 10, 'F')
+      doc.setTextColor(255)
+      doc.setFontSize(9)
+      doc.text('Description', 25, y + 7)
+      doc.text('Qty', 120, y + 7)
+      doc.text('Unit Price', 140, y + 7)
+      doc.text('Amount', 170, y + 7)
+      
+      // Table rows
+      y += 15
+      doc.setTextColor(60)
+      inv.invoice_items?.forEach((item) => {
+        doc.text(item.description?.substring(0, 40) || '', 25, y)
+        doc.text(String(item.quantity), 120, y)
+        doc.text(formatCurrency(item.unit_price).replace('KES', '').trim(), 140, y)
+        doc.text(formatCurrency(item.amount).replace('KES', '').trim(), 170, y)
+        y += 8
+      })
+      
+      // Totals
+      y += 10
+      doc.setDrawColor(200)
+      doc.line(130, y, pageWidth - 20, y)
+      y += 8
+      doc.setFontSize(10)
+      doc.text('Subtotal:', 130, y)
+      doc.text(formatCurrency(inv.subtotal), 170, y)
+      y += 7
+      doc.text(`Tax (${inv.tax_rate}%):`, 130, y)
+      doc.text(formatCurrency(inv.tax_amount), 170, y)
+      y += 10
+      doc.setFontSize(12)
+      doc.setTextColor(44, 62, 80)
+      doc.text('Total:', 130, y)
+      doc.text(formatCurrency(inv.total_amount), 170, y)
+      
+      if (parseFloat(inv.amount_paid) > 0) {
+        y += 8
+        doc.setFontSize(10)
+        doc.setTextColor(40, 167, 69)
+        doc.text('Paid:', 130, y)
+        doc.text(formatCurrency(inv.amount_paid), 170, y)
+      }
+      
+      if (parseFloat(inv.balance_due) > 0) {
+        y += 8
+        doc.setTextColor(220, 53, 69)
+        doc.text('Balance Due:', 130, y)
+        doc.text(formatCurrency(inv.balance_due), 170, y)
+      }
+      
+      // Terms & Notes
+      if (inv.terms || inv.notes) {
+        y += 20
+        doc.setFontSize(9)
+        doc.setTextColor(100)
+        if (inv.terms) doc.text(`Terms: ${inv.terms}`, 20, y)
+        if (inv.notes) doc.text(`Notes: ${inv.notes}`, 20, y + 6)
+      }
+      
+      // Footer
+      doc.setFontSize(8)
+      doc.setTextColor(150)
+      doc.text('Thank you for your business!', pageWidth / 2, 280, { align: 'center' })
+      
+      // Save
+      doc.save(`${inv.invoice_number}.pdf`)
+    } catch (err) {
+      console.error('Error generating PDF:', err)
+      alert('Failed to generate PDF')
+    }
+  }
+
   if (loading) return <div className="loading">Loading invoicing data...</div>
 
   return (
@@ -363,6 +491,7 @@ export default function Invoices({ currentUser }) {
                   <td>
                     <div style={{ display: 'flex', gap: '0.25rem' }}>
                       <button className="btn btn-small" onClick={() => viewInvoiceDetails(inv)} title="View">👁️</button>
+                      <button className="btn btn-small" onClick={() => generatePDF(inv)} title="Download PDF">📥</button>
                       {inv.status === 'draft' && (
                         <button className="btn btn-small btn-primary" onClick={() => handleStatusChange(inv.id, 'sent')} title="Send">📤</button>
                       )}
@@ -583,7 +712,8 @@ export default function Invoices({ currentUser }) {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button className="btn btn-primary" onClick={() => generatePDF(selectedInvoice)}>📥 Download PDF</button>
               <button className="btn" onClick={() => setSelectedInvoice(null)}>Close</button>
             </div>
           </div>
