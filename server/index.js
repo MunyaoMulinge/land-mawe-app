@@ -1061,8 +1061,17 @@ app.post('/api/clients', async (req, res) => {
     const { data, error } = await supabase
       .from('clients')
       .insert([{
-        name, contact_person, email, phone, address, city,
-        company_type, tax_pin, payment_terms, credit_limit, notes,
+        name, 
+        contact_person: contact_person || null, 
+        email: email || null, 
+        phone: phone || null, 
+        address: address || null, 
+        city: city || null,
+        company_type: company_type || null, 
+        tax_pin: tax_pin || null, 
+        payment_terms: payment_terms || 30, 
+        credit_limit: credit_limit ? parseFloat(credit_limit) : null, 
+        notes: notes || null,
         created_by: userId
       }])
       .select()
