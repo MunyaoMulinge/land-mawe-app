@@ -1011,6 +1011,263 @@ app.get('/api/job-cards/stats/summary', async (req, res) => {
   }
 });
 
+// ============ FUEL MANAGEMENT ENDPOINTS ============
+
+// Get all fuel records
+app.get('/api/fuel', async (req, res) => {
+  const { truck_id, from_date, to_date, limit = 100 } = req.query;
+  
+  try {
+    let query = supabase
+      .from('fuel_records')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        drivers(name),
+        recorder:recorded_by(name),
+        job_cards(job_number)
+      `)
+      .order('fuel_date', { ascending: false })
+      .limit(limit);
+    
+    if (truck_id) query = query.eq('truck_id', truck_id);
+    if (from_date) query = query.gte('fuel_date', from_date);
+    if (to_date) query = query.lte('fuel_date', to_date);
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    const transformedData = data.map(record => ({
+      ...record,
+      truck_plate: record.trucks?.plate_number,
+      truck_model: record.trucks?.model,
+      driver_name: record.drivers?.name,
+      recorded_by_name: record.recorder?.name,
+      job_number: record.job_cards?.job_number
+    }));
+    
+    res.json(transformedData);
+  } catch (err) {
+    console.error('Error fetching fuel records:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get fuel stats summary
+app.get('/api/fuel/stats', async (req, res) => {
+  const { from_date, to_date } = req.query;
+  
+  try {
+    let query = supabase
+      .from('fuel_records')
+      .select('quantity_liters, total_cost, truck_id');
+    
+    if (from_date) query = query.gte('fuel_date', from_date);
+    if (to_date) query = query.lte('fuel_date', to_date);
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    const stats = {
+      total_records: data.length,
+      total_liters: data.reduce((sum, r) => sum + parseFloat(r.quantity_liters || 0), 0),
+      total_cost: data.reduce((sum, r) => sum + parseFloat(r.total_cost || 0), 0),
+      unique_trucks: new Set(data.map(r => r.truck_id)).size,
+      avg_cost_per_liter: 0
+    };
+    
+    if (stats.total_liters > 0) {
+      stats.avg_cost_per_liter = stats.total_cost / stats.total_liters;
+    }
+    
+    res.json(stats);
+  } catch (err) {
+    console.error('Error fetching fuel stats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get fuel consumption by truck
+app.get('/api/fuel/by-truck', async (req, res) => {
+  try {
+    const { data: fuelData, error: fuelError } = await supabase
+      .from('fuel_records')
+      .select('truck_id, quantity_liters, total_cost, fuel_date');
+    
+    if (fuelError) throw fuelError;
+    
+    const { data: trucks, error: trucksError } = await supabase
+      .from('trucks')
+      .select('id, plate_number, model');
+    
+    if (trucksError) throw trucksError;
+    
+    // Aggregate by truck
+    const truckStats = trucks.map(truck => {
+      const truckFuel = fuelData.filter(f => f.truck_id === truck.id);
+      return {
+        truck_id: truck.id,
+        plate_number: truck.plate_number,
+        model: truck.model,
+        total_refills: truckFuel.length,
+        total_liters: truckFuel.reduce((sum, r) => sum + parseFloat(r.quantity_liters || 0), 0),
+        total_cost: truckFuel.reduce((sum, r) => sum + parseFloat(r.total_cost || 0), 0),
+        last_refill: truckFuel.length > 0 ? truckFuel.sort((a, b) => new Date(b.fuel_date) - new Date(a.fuel_date))[0].fuel_date : null
+      };
+    });
+    
+    res.json(truckStats.sort((a, b) => b.total_cost - a.total_cost));
+  } catch (err) {
+    console.error('Error fetching fuel by truck:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create fuel record
+app.post('/api/fuel', async (req, res) => {
+  const { 
+    truck_id, driver_id, job_card_id, fuel_date, quantity_liters, 
+    cost_per_liter, fuel_station, station_location, receipt_number,
+    odometer_reading, fuel_type, payment_method, notes 
+  } = req.body;
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    const total_cost = parseFloat(quantity_liters) * parseFloat(cost_per_liter);
+    
+    const { data, error } = await supabase
+      .from('fuel_records')
+      .insert([{
+        truck_id,
+        driver_id,
+        job_card_id,
+        recorded_by: userId,
+        fuel_date,
+        quantity_liters,
+        cost_per_liter,
+        total_cost,
+        fuel_station,
+        station_location,
+        receipt_number,
+        odometer_reading,
+        fuel_type: fuel_type || 'diesel',
+        payment_method: payment_method || 'cash',
+        notes
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Update truck mileage if provided
+    if (odometer_reading) {
+      await supabase
+        .from('trucks')
+        .update({ current_mileage: odometer_reading })
+        .eq('id', truck_id);
+    }
+    
+    // Log activity
+    await logActivity(userId, 'FUEL_RECORDED', 'fuel_record', data.id, { 
+      truck_id, 
+      quantity_liters, 
+      total_cost 
+    });
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error creating fuel record:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update fuel record
+app.patch('/api/fuel/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const updates = req.body;
+  
+  try {
+    // Recalculate total if quantity or cost changed
+    if (updates.quantity_liters && updates.cost_per_liter) {
+      updates.total_cost = parseFloat(updates.quantity_liters) * parseFloat(updates.cost_per_liter);
+    }
+    
+    updates.updated_at = new Date().toISOString();
+    
+    const { data, error } = await supabase
+      .from('fuel_records')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    await logActivity(userId, 'FUEL_UPDATED', 'fuel_record', data.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating fuel record:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete fuel record
+app.delete('/api/fuel/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    const { error } = await supabase
+      .from('fuel_records')
+      .delete()
+      .eq('id', req.params.id);
+    
+    if (error) throw error;
+    
+    await logActivity(userId, 'FUEL_DELETED', 'fuel_record', req.params.id);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting fuel record:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get monthly fuel report
+app.get('/api/fuel/report/monthly', async (req, res) => {
+  const { year = new Date().getFullYear() } = req.query;
+  
+  try {
+    const { data, error } = await supabase
+      .from('fuel_records')
+      .select('fuel_date, quantity_liters, total_cost')
+      .gte('fuel_date', `${year}-01-01`)
+      .lte('fuel_date', `${year}-12-31`);
+    
+    if (error) throw error;
+    
+    // Group by month
+    const monthlyData = {};
+    for (let i = 1; i <= 12; i++) {
+      monthlyData[i] = { month: i, liters: 0, cost: 0, count: 0 };
+    }
+    
+    data.forEach(record => {
+      const month = new Date(record.fuel_date).getMonth() + 1;
+      monthlyData[month].liters += parseFloat(record.quantity_liters || 0);
+      monthlyData[month].cost += parseFloat(record.total_cost || 0);
+      monthlyData[month].count++;
+    });
+    
+    res.json(Object.values(monthlyData));
+  } catch (err) {
+    console.error('Error fetching monthly report:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Land Mawe server running on port ${PORT}`);
 });
