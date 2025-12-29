@@ -627,6 +627,390 @@ app.get('/api/activity-logs/stats', async (req, res) => {
   }
 });
 
+// ============ JOB CARDS ENDPOINTS ============
+
+// Get all job cards
+app.get('/api/job-cards', async (req, res) => {
+  const { status, truck_id, driver_id, from_date, to_date } = req.query;
+  
+  try {
+    let query = supabase
+      .from('job_cards')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        drivers(name, phone),
+        creator:created_by(name),
+        approver:approved_by(name),
+        job_card_checklist(*)
+      `)
+      .order('created_at', { ascending: false });
+    
+    if (status) query = query.eq('status', status);
+    if (truck_id) query = query.eq('truck_id', truck_id);
+    if (driver_id) query = query.eq('driver_id', driver_id);
+    if (from_date) query = query.gte('departure_date', from_date);
+    if (to_date) query = query.lte('departure_date', to_date);
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    // Transform data
+    const transformedData = data.map(jc => ({
+      ...jc,
+      truck_plate: jc.trucks?.plate_number,
+      truck_model: jc.trucks?.model,
+      driver_name: jc.drivers?.name,
+      driver_phone: jc.drivers?.phone,
+      created_by_name: jc.creator?.name,
+      approved_by_name: jc.approver?.name,
+      checklist: jc.job_card_checklist?.[0] || null
+    }));
+    
+    res.json(transformedData);
+  } catch (err) {
+    console.error('Error fetching job cards:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single job card
+app.get('/api/job-cards/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('job_cards')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        drivers(name, phone),
+        creator:created_by(name),
+        approver:approved_by(name),
+        job_card_checklist(*)
+      `)
+      .eq('id', req.params.id)
+      .single();
+    
+    if (error) throw error;
+    
+    const transformed = {
+      ...data,
+      truck_plate: data.trucks?.plate_number,
+      truck_model: data.trucks?.model,
+      driver_name: data.drivers?.name,
+      driver_phone: data.drivers?.phone,
+      created_by_name: data.creator?.name,
+      approved_by_name: data.approver?.name,
+      checklist: data.job_card_checklist?.[0] || null
+    };
+    
+    res.json(transformed);
+  } catch (err) {
+    console.error('Error fetching job card:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create job card
+app.post('/api/job-cards', async (req, res) => {
+  const { truck_id, driver_id, booking_id, departure_date, destination, purpose, notes } = req.body;
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    // Generate job number
+    const jobNumber = 'JC-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Date.now().toString().slice(-4);
+    
+    // Create job card
+    const { data: jobCard, error: jobError } = await supabase
+      .from('job_cards')
+      .insert([{
+        truck_id,
+        driver_id,
+        booking_id,
+        created_by: userId,
+        job_number: jobNumber,
+        departure_date,
+        destination,
+        purpose,
+        notes,
+        status: 'draft'
+      }])
+      .select()
+      .single();
+    
+    if (jobError) throw jobError;
+    
+    // Create empty checklist
+    const { error: checklistError } = await supabase
+      .from('job_card_checklist')
+      .insert([{ job_card_id: jobCard.id }]);
+    
+    if (checklistError) throw checklistError;
+    
+    // Log activity
+    await logActivity(userId, 'JOB_CARD_CREATED', 'job_card', jobCard.id, { job_number: jobNumber });
+    
+    res.json(jobCard);
+  } catch (err) {
+    console.error('Error creating job card:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update job card checklist
+app.patch('/api/job-cards/:id/checklist', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const checklistData = req.body;
+  
+  try {
+    // Update checklist
+    const { data, error } = await supabase
+      .from('job_card_checklist')
+      .update({
+        ...checklistData,
+        inspected_by: userId,
+        inspected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('job_card_id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(userId, 'CHECKLIST_UPDATED', 'job_card', req.params.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating checklist:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submit job card for approval
+app.patch('/api/job-cards/:id/submit', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    // Check if checklist is complete
+    const { data: checklist, error: checkError } = await supabase
+      .from('job_card_checklist')
+      .select('*')
+      .eq('job_card_id', req.params.id)
+      .single();
+    
+    if (checkError) throw checkError;
+    
+    // Validate required fields
+    const requiredChecks = [
+      checklist.fire_extinguisher,
+      checklist.first_aid_kit,
+      checklist.warning_triangles,
+      checklist.lights_working,
+      checklist.tires_condition !== 'not_checked',
+      checklist.brakes_condition !== 'not_checked',
+      checklist.fuel_level !== 'not_checked'
+    ];
+    
+    if (!requiredChecks.every(Boolean)) {
+      return res.status(400).json({ 
+        error: 'Please complete all required safety checks before submitting' 
+      });
+    }
+    
+    // Update status
+    const { data, error } = await supabase
+      .from('job_cards')
+      .update({ status: 'pending_approval' })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(userId, 'JOB_CARD_SUBMITTED', 'job_card', req.params.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error submitting job card:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Approve job card (admin only)
+app.patch('/api/job-cards/:id/approve', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    const { data, error } = await supabase
+      .from('job_cards')
+      .update({ 
+        status: 'approved',
+        approved_by: userId,
+        approved_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(userId, 'JOB_CARD_APPROVED', 'job_card', req.params.id);
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error approving job card:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark as departed
+app.patch('/api/job-cards/:id/depart', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { departure_mileage } = req.body;
+  
+  try {
+    // Check if approved
+    const { data: jobCard, error: checkError } = await supabase
+      .from('job_cards')
+      .select('status, truck_id')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (checkError) throw checkError;
+    
+    if (jobCard.status !== 'approved') {
+      return res.status(400).json({ error: 'Job card must be approved before departure' });
+    }
+    
+    // Update job card
+    const { data, error } = await supabase
+      .from('job_cards')
+      .update({ 
+        status: 'departed',
+        departed_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Update checklist with departure mileage
+    if (departure_mileage) {
+      await supabase
+        .from('job_card_checklist')
+        .update({ departure_mileage })
+        .eq('job_card_id', req.params.id);
+    }
+    
+    // Update truck status
+    await supabase
+      .from('trucks')
+      .update({ status: 'booked' })
+      .eq('id', jobCard.truck_id);
+    
+    // Log activity
+    await logActivity(userId, 'TRUCK_DEPARTED', 'job_card', req.params.id, { departure_mileage });
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error marking departure:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete job card (return)
+app.patch('/api/job-cards/:id/complete', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { return_mileage, return_notes } = req.body;
+  
+  try {
+    // Get job card
+    const { data: jobCard, error: checkError } = await supabase
+      .from('job_cards')
+      .select('truck_id')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (checkError) throw checkError;
+    
+    // Update job card
+    const { data, error } = await supabase
+      .from('job_cards')
+      .update({ 
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        return_notes
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Update checklist with return info
+    await supabase
+      .from('job_card_checklist')
+      .update({ 
+        return_mileage,
+        return_notes,
+        return_inspected_by: userId,
+        return_inspected_at: new Date().toISOString()
+      })
+      .eq('job_card_id', req.params.id);
+    
+    // Update truck status back to available
+    await supabase
+      .from('trucks')
+      .update({ status: 'available' })
+      .eq('id', jobCard.truck_id);
+    
+    // Log activity
+    await logActivity(userId, 'JOB_CARD_COMPLETED', 'job_card', req.params.id, { return_mileage });
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error completing job card:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get job card stats
+app.get('/api/job-cards/stats/summary', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('job_cards')
+      .select('status');
+    
+    if (error) throw error;
+    
+    const stats = {
+      total: data.length,
+      draft: 0,
+      pending_approval: 0,
+      approved: 0,
+      departed: 0,
+      completed: 0,
+      cancelled: 0
+    };
+    
+    data.forEach(jc => {
+      if (stats[jc.status] !== undefined) {
+        stats[jc.status]++;
+      }
+    });
+    
+    res.json(stats);
+  } catch (err) {
+    console.error('Error fetching job card stats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Land Mawe server running on port ${PORT}`);
 });
