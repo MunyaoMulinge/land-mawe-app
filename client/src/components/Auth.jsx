@@ -1,6 +1,7 @@
 import { useState } from 'react'
-
+import { useTheme } from '../hooks/useTheme'
 import { API_BASE } from '../config'
+
 const API = API_BASE
 
 export default function Auth({ onLogin }) {
@@ -8,6 +9,7 @@ export default function Auth({ onLogin }) {
   const [form, setForm] = useState({ email: '', password: '', name: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { theme, toggleTheme } = useTheme()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -42,8 +44,20 @@ export default function Auth({ onLogin }) {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>🚛 Land Mawe</h1>
-          <p>{isLogin ? 'Sign in to your account' : 'Create your account'}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h1>🚛 Land Mawe</h1>
+              <p>{isLogin ? 'Sign in to your account' : 'Create your account'}</p>
+            </div>
+            <button 
+              onClick={toggleTheme}
+              className="theme-toggle"
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)' }}
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+          </div>
         </div>
 
         {error && (

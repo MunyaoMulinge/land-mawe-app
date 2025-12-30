@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTheme } from './hooks/useTheme'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import Trucks from './components/Trucks'
@@ -16,6 +17,7 @@ import './App.css'
 function App() {
   const [user, setUser] = useState(null)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user')
@@ -65,6 +67,13 @@ function App() {
           <p>Truck Tracking Admin Portal</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button 
+            onClick={toggleTheme}
+            className="theme-toggle"
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
           <div style={{ textAlign: 'right' }}>
             <span style={{ opacity: 0.9 }}>Welcome, {user.name || user.email}</span>
             <span style={{ 
