@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
+import { useTheme } from '../hooks/useTheme'
 
 export default function ActivityLogs({ currentUser }) {
+  const { theme } = useTheme()
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -93,7 +95,7 @@ export default function ActivityLogs({ currentUser }) {
 
         <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
           {logs.length === 0 ? (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: theme === 'dark' ? '#aaa' : '#666' }}>
               No activity logs found
             </p>
           ) : (
@@ -105,7 +107,7 @@ export default function ActivityLogs({ currentUser }) {
                     display: 'flex', 
                     alignItems: 'center', 
                     padding: '0.75rem 1rem',
-                    background: '#f8f9fa',
+                    background: theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8f9fa',
                     borderRadius: '8px',
                     borderLeft: `4px solid ${getActionColor(log.action)}`
                   }}
@@ -114,20 +116,20 @@ export default function ActivityLogs({ currentUser }) {
                     {getActionIcon(log.action)}
                   </span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: '500' }}>
+                    <div style={{ fontWeight: '500', color: theme === 'dark' ? '#fff' : '#000' }}>
                       {formatAction(log.action)}
                     </div>
-                    <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                    <div style={{ fontSize: '0.85rem', color: theme === 'dark' ? '#aaa' : '#666' }}>
                       by {log.users?.name || 'Unknown'} ({log.users?.email || 'N/A'})
                       {log.entity_type && ` • ${log.entity_type} #${log.entity_id}`}
                     </div>
                     {log.details && (
-                      <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.25rem' }}>
+                      <div style={{ fontSize: '0.8rem', color: theme === 'dark' ? '#888' : '#888', marginTop: '0.25rem' }}>
                         {JSON.stringify(log.details)}
                       </div>
                     )}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#666', textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.85rem', color: theme === 'dark' ? '#aaa' : '#666', textAlign: 'right' }}>
                     <div>{new Date(log.created_at).toLocaleDateString()}</div>
                     <div>{new Date(log.created_at).toLocaleTimeString()}</div>
                   </div>
