@@ -186,7 +186,6 @@ export default function Drivers() {
           </ul>
         </div>
       )}
-    </div>
 
       {/* Create Driver Account Modal */}
       {showLinkModal && (
