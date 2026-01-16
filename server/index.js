@@ -91,7 +91,7 @@ app.get('/api/test', async (req, res) => {
 
 // Auth endpoints
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, name, phone } = req.body;
+  const { email, password, name, phone, role } = req.body;
   try {
     // Check if email already exists
     const { data: existing } = await supabase
@@ -112,6 +112,9 @@ app.post('/api/auth/register', async (req, res) => {
     
     const isFirstUser = !allUsers || allUsers.length === 0;
     
+    // Determine role: first user = admin, otherwise use provided role or default to staff
+    const userRole = isFirstUser ? 'admin' : (role || 'staff');
+    
     // Insert new user
     const { data: newUser, error } = await supabase
       .from('users')
@@ -120,7 +123,7 @@ app.post('/api/auth/register', async (req, res) => {
         password, 
         name, 
         phone,
-        role: isFirstUser ? 'admin' : 'staff'
+        role: userRole
       }])
       .select('id, email, name, role, phone, created_at')
       .single();
@@ -289,6 +292,29 @@ app.get('/api/drivers', async (req, res) => {
   }
 });
 
+// Get driver by user_id (for driver portal)
+app.get('/api/drivers/by-user/:userId', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('*')
+      .eq('user_id', req.params.userId)
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Driver not found for this user' });
+      }
+      throw error;
+    }
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching driver by user:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/drivers', async (req, res) => {
   const { name, phone, license_number } = req.body;
   try {
@@ -311,6 +337,25 @@ app.post('/api/drivers', async (req, res) => {
     res.json(driverData);
   } catch (err) {
     console.error('Error creating driver:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update driver (for linking to user account)
+app.patch('/api/drivers/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('drivers')
+      .update(req.body)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating driver:', err);
     res.status(500).json({ error: err.message });
   }
 });

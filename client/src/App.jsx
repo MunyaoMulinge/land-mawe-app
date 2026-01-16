@@ -12,6 +12,7 @@ import Compliance from './components/Compliance'
 import Invoices from './components/Invoices'
 import Users from './components/Users'
 import ActivityLogs from './components/ActivityLogs'
+import DriverPortal from './components/DriverPortal'
 import './App.css'
 
 function App() {
@@ -39,6 +40,56 @@ function App() {
 
   if (!user) {
     return <Auth onLogin={handleLogin} />
+  }
+
+  // Driver role - show only driver portal
+  if (user.role === 'driver') {
+    return (
+      <div className="app">
+        <header className="header">
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <h1>🚛 Land Mawe</h1>
+            <p>Driver Portal</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button 
+              onClick={toggleTheme}
+              className="theme-toggle"
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ opacity: 0.9 }}>Welcome, {user.name || user.email}</span>
+              <span style={{ 
+                display: 'block', 
+                fontSize: '0.75rem', 
+                opacity: 0.7,
+                textTransform: 'capitalize'
+              }}>
+                🚗 Driver
+              </span>
+            </div>
+            <button 
+              onClick={handleLogout}
+              style={{ 
+                background: 'rgba(255,255,255,0.2)', 
+                border: '1px solid rgba(255,255,255,0.3)',
+                color: 'white',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Logout
+            </button>
+          </div>
+        </header>
+        <main className="main">
+          <DriverPortal currentUser={user} />
+        </main>
+      </div>
+    )
   }
 
   // Define tabs based on user role
@@ -82,7 +133,7 @@ function App() {
               opacity: 0.7,
               textTransform: 'capitalize'
             }}>
-              {user.role === 'admin' ? '👑 Admin' : '👤 Staff'}
+              {user.role === 'admin' ? '👑 Admin' : user.role === 'driver' ? '🚗 Driver' : '👤 Staff'}
             </span>
           </div>
           <button 

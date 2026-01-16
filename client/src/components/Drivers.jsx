@@ -17,6 +17,8 @@ export default function Drivers() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState(null)
+  const [showLinkModal, setShowLinkModal] = useState(null)
+  const [linkForm, setLinkForm] = useState({ email: '', password: '', phone: '' })
   const [form, setForm] = useState({ name: '', phone: '', license_number: '' })
 
   const fetchDrivers = () => {
@@ -47,6 +49,45 @@ export default function Drivers() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ field, value: !currentValue })
     }).then(() => fetchDrivers())
+  }
+
+  const handleCreateDriverAccount = async (e) => {
+    e.preventDefault()
+    try {
+      // Create user account with driver role
+      const res = await fetch(`${API}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: linkForm.email,
+          password: linkForm.password,
+          name: showLinkModal.name,
+          phone: linkForm.phone || showLinkModal.phone,
+          role: 'driver'
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (!res.ok) {
+        alert(data.error || 'Failed to create account')
+        return
+      }
+      
+      // Link driver to user
+      await fetch(`${API}/drivers/${showLinkModal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: data.user.id })
+      })
+      
+      alert('Driver account created successfully!')
+      setShowLinkModal(null)
+      setLinkForm({ email: '', password: '', phone: '' })
+      fetchDrivers()
+    } catch (err) {
+      alert('Error creating driver account: ' + err.message)
+    }
   }
 
   if (loading) return <div className="loading">Loading drivers...</div>
@@ -87,6 +128,7 @@ export default function Drivers() {
               <th>Name</th>
               <th>Phone</th>
               <th>License</th>
+              <th>Account</th>
               <th>Onboarding</th>
               <th>Actions</th>
             </tr>
@@ -97,6 +139,19 @@ export default function Drivers() {
                 <td>{driver.name}</td>
                 <td>{driver.phone}</td>
                 <td>{driver.license_number}</td>
+                <td>
+                  {driver.user_id ? (
+                    <span className="badge" style={{ background: '#d4edda', color: '#155724' }}>✓ Linked</span>
+                  ) : (
+                    <button 
+                      className="btn btn-small btn-primary" 
+                      onClick={() => setShowLinkModal(driver)}
+                      title="Create driver account"
+                    >
+                      Create Account
+                    </button>
+                  )}
+                </td>
                 <td>
                   <span className={`badge ${driver.onboarding_complete ? 'available' : 'pending'}`}>
                     {driver.onboarding_complete ? 'Complete' : 'Pending'}
@@ -129,6 +184,54 @@ export default function Drivers() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+    </div>
+
+      {/* Create Driver Account Modal */}
+      {showLinkModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg-secondary)', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '500px', border: '1px solid var(--border-color)' }}>
+            <h3 style={{ marginBottom: '1rem' }}>🚗 Create Driver Account</h3>
+            <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+              Creating login account for: <strong>{showLinkModal.name}</strong>
+            </p>
+            <form onSubmit={handleCreateDriverAccount}>
+              <div className="form-group">
+                <label>Email *</label>
+                <input 
+                  type="email"
+                  value={linkForm.email}
+                  onChange={e => setLinkForm({...linkForm, email: e.target.value})}
+                  placeholder="driver@example.com"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Password *</label>
+                <input 
+                  type="password"
+                  value={linkForm.password}
+                  onChange={e => setLinkForm({...linkForm, password: e.target.value})}
+                  placeholder="Minimum 6 characters"
+                  minLength="6"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Phone (optional)</label>
+                <input 
+                  value={linkForm.phone}
+                  onChange={e => setLinkForm({...linkForm, phone: e.target.value})}
+                  placeholder={showLinkModal.phone || "Phone number"}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <button type="button" className="btn" onClick={() => setShowLinkModal(null)}>Cancel</button>
+                <button type="submit" className="btn btn-success">✅ Create Account</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
