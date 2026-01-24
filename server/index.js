@@ -758,7 +758,15 @@ app.get('/api/job-cards/:id', async (req, res) => {
 
 // Create job card
 app.post('/api/job-cards', async (req, res) => {
-  const { truck_id, driver_id, booking_id, departure_date, destination, purpose, notes } = req.body;
+  const { 
+    truck_id, driver_id, booking_id, 
+    job_date, purpose, client_name, event_start_date, event_finish_date, branding_in_house,
+    crew, team_lead, notes, merchandise,
+    vehicle_reg, kilometer, fuel_gauge, current_average,
+    equipment, damage_report,
+    // Legacy fields for backward compatibility
+    departure_date, destination
+  } = req.body;
   const userId = req.headers['x-user-id'];
   
   try {
@@ -774,8 +782,23 @@ app.post('/api/job-cards', async (req, res) => {
         booking_id,
         created_by: userId,
         job_number: jobNumber,
-        departure_date,
-        destination,
+        // New fields
+        client_name,
+        event_start_date,
+        event_finish_date,
+        branding_in_house: branding_in_house || false,
+        crew,
+        team_lead,
+        route: notes,
+        merchandise,
+        vehicle_reg,
+        kilometer: kilometer ? parseInt(kilometer) : null,
+        fuel_gauge,
+        current_average: current_average ? parseFloat(current_average) : null,
+        damage_report,
+        // Legacy fields
+        departure_date: departure_date || event_start_date || job_date,
+        destination: destination || client_name,
         purpose,
         notes,
         status: 'draft'
@@ -785,12 +808,29 @@ app.post('/api/job-cards', async (req, res) => {
     
     if (jobError) throw jobError;
     
-    // Create empty checklist
+    // Create equipment records
+    if (equipment && equipment.length > 0) {
+      const equipmentRecords = equipment.map(eq => ({
+        job_card_id: jobCard.id,
+        equipment_name: eq.name,
+        equipment_type: eq.type || null,
+        quantity: eq.quantity || 0,
+        returned: eq.returned || false
+      }));
+      
+      const { error: equipmentError } = await supabase
+        .from('job_card_equipment')
+        .insert(equipmentRecords);
+      
+      if (equipmentError) console.error('Equipment insert error:', equipmentError);
+    }
+    
+    // Create empty checklist for backward compatibility
     const { error: checklistError } = await supabase
       .from('job_card_checklist')
       .insert([{ job_card_id: jobCard.id }]);
     
-    if (checklistError) throw checklistError;
+    if (checklistError) console.error('Checklist insert error:', checklistError);
     
     // Log activity
     await logActivity(userId, 'JOB_CARD_CREATED', 'job_card', jobCard.id, { job_number: jobNumber });
