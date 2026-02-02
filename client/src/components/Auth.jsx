@@ -11,8 +11,18 @@ export default function Auth({ onLogin }) {
   const [error, setError] = useState('')
   const { theme, toggleTheme } = useTheme()
 
+  // Disable signup - only login allowed
+  const SIGNUP_DISABLED = true
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Block signup attempts
+    if (!isLogin && SIGNUP_DISABLED) {
+      setError('Signup is disabled. Please contact your administrator for account creation.')
+      return
+    }
+    
     setLoading(true)
     setError('')
 
@@ -113,13 +123,20 @@ export default function Auth({ onLogin }) {
         </form>
 
         <div className="auth-footer">
-          <button
-            type="button"
-            onClick={() => setIsLogin(!isLogin)}
-            className="auth-toggle"
-          >
-            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-          </button>
+          {!SIGNUP_DISABLED && (
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              className="auth-toggle"
+            >
+              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            </button>
+          )}
+          {SIGNUP_DISABLED && isLogin && (
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Need an account? Contact your administrator.
+            </p>
+          )}
         </div>
       </div>
     </div>

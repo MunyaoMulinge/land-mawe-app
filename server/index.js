@@ -2100,6 +2100,57 @@ app.get('/api/trucks/:id/maintenance', async (req, res) => {
   }
 });
 
+// ============ EQUIPMENT MANAGEMENT ENDPOINTS ============
+
+// Get all equipment
+app.get('/api/equipment', async (req, res) => {
+  const { category } = req.query;
+  
+  try {
+    let query = supabase
+      .from('equipment')
+      .select('*')
+      .order('category')
+      .order('name');
+    
+    if (category) query = query.eq('category', category);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching equipment:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create equipment
+app.post('/api/equipment', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { name, category, model, serial_number, quantity, condition, location, notes } = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from('equipment')
+      .insert([{
+        name, category, model, serial_number, quantity,
+        condition: condition || 'good',
+        status: 'available',
+        location, notes,
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    await logActivity(userId, 'EQUIPMENT_CREATED', 'equipment', data.id, { name, category });
+    res.json(data);
+  } catch (err) {
+    console.error('Error creating equipment:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ FUEL MANAGEMENT ENDPOINTS ============
 
 // Get all fuel records
@@ -2353,6 +2404,90 @@ app.get('/api/fuel/report/monthly', async (req, res) => {
     res.json(Object.values(monthlyData));
   } catch (err) {
     console.error('Error fetching monthly report:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ FUEL APPROVAL ENDPOINTS (Finance Role) ============
+
+// Get pending fuel records for approval
+app.get('/api/fuel/pending', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('fuel_records')
+      .select(`
+        *,
+        trucks(plate_number, model),
+        drivers(name),
+        recorder:recorded_by(name)
+      `)
+      .eq('approval_status', 'pending')
+      .order('fuel_date', { ascending: false });
+    
+    if (error) throw error;
+    
+    const transformed = data.map(record => ({
+      ...record,
+      truck_plate: record.trucks?.plate_number,
+      driver_name: record.drivers?.name,
+      recorded_by_name: record.recorder?.name
+    }));
+    
+    res.json(transformed);
+  } catch (err) {
+    console.error('Error fetching pending fuel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Approve fuel record
+app.patch('/api/fuel/:id/approve', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  
+  try {
+    const { data, error } = await supabase
+      .from('fuel_records')
+      .update({
+        approval_status: 'approved',
+        approved_by: userId,
+        approved_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    await logActivity(userId, 'FUEL_APPROVED', 'fuel_record', data.id);
+    res.json(data);
+  } catch (err) {
+    console.error('Error approving fuel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reject fuel record
+app.patch('/api/fuel/:id/reject', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { rejection_reason } = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from('fuel_records')
+      .update({
+        approval_status: 'rejected',
+        approved_by: userId,
+        approved_at: new Date().toISOString(),
+        rejection_reason
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    await logActivity(userId, 'FUEL_REJECTED', 'fuel_record', data.id, { rejection_reason });
+    res.json(data);
+  } catch (err) {
+    console.error('Error rejecting fuel:', err);
     res.status(500).json({ error: err.message });
   }
 });

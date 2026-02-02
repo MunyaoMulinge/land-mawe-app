@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard'
 import Trucks from './components/Trucks'
 import Drivers from './components/Drivers'
 import Bookings from './components/Bookings'
+import Equipment from './components/Equipment'
 import JobCards from './components/JobCards'
 import Fuel from './components/Fuel'
 import Maintenance from './components/Maintenance'
@@ -94,17 +95,18 @@ function App() {
 
   // Define tabs based on user role
   const baseTabs = [
-    { id: 'dashboard', label: '📊 Dashboard', roles: ['admin', 'staff'] },
-    { id: 'trucks', label: '🚛 Trucks', roles: ['admin', 'staff'] },
-    { id: 'drivers', label: '👤 Drivers', roles: ['admin', 'staff'] },
-    { id: 'jobcards', label: '📋 Job Cards', roles: ['admin', 'staff'] },
-    { id: 'fuel', label: '⛽ Fuel', roles: ['admin', 'staff'] },
-    { id: 'maintenance', label: '🔧 Maintenance', roles: ['admin', 'staff'] },
-    { id: 'compliance', label: '🛡️ Compliance', roles: ['admin', 'staff'] },
-    { id: 'invoices', label: '💰 Invoices', roles: ['admin', 'staff'] },
-    { id: 'bookings', label: '📅 Bookings', roles: ['admin', 'staff'] },
-    { id: 'users', label: '👥 Users', roles: ['admin'] },
-    { id: 'activity', label: '📋 Activity', roles: ['admin'] }
+    { id: 'dashboard', label: '📊 Dashboard', roles: ['superadmin', 'admin', 'finance', 'staff'] },
+    { id: 'bookings', label: '📅 Bookings', roles: ['superadmin', 'admin', 'staff'] },
+    { id: 'trucks', label: '🚛 Trucks', roles: ['superadmin', 'admin', 'staff'] },
+    { id: 'drivers', label: '👤 Drivers', roles: ['superadmin', 'admin', 'staff'] },
+    { id: 'equipment', label: '📦 Equipment', roles: ['superadmin', 'admin', 'staff'] },
+    { id: 'jobcards', label: '📋 Job Cards', roles: ['superadmin', 'admin', 'staff'] },
+    { id: 'fuel', label: '⛽ Fuel', roles: ['superadmin', 'admin', 'finance', 'staff'] },
+    { id: 'maintenance', label: '🔧 Maintenance', roles: ['superadmin', 'admin', 'staff'] },
+    { id: 'compliance', label: '🛡️ Compliance', roles: ['superadmin', 'admin', 'staff'] },
+    { id: 'invoices', label: '💰 Invoices', roles: ['superadmin', 'finance'] },
+    { id: 'users', label: '👥 Users', roles: ['superadmin', 'admin'] },
+    { id: 'activity', label: '📋 Activity', roles: ['superadmin', 'admin'] }
   ]
 
   // Filter tabs based on user role
@@ -133,7 +135,7 @@ function App() {
               opacity: 0.7,
               textTransform: 'capitalize'
             }}>
-              {user.role === 'admin' ? '👑 Admin' : user.role === 'driver' ? '🚗 Driver' : '👤 Staff'}
+              {user.role === 'superadmin' ? '⭐ Super Admin' : user.role === 'admin' ? '👑 Admin' : user.role === 'finance' ? '💰 Finance' : user.role === 'driver' ? '🚗 Driver' : '👤 Staff'}
             </span>
           </div>
           <button 
@@ -164,16 +166,17 @@ function App() {
       </nav>
       <main className="main">
         {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'bookings' && <Bookings />}
         {activeTab === 'trucks' && <Trucks />}
         {activeTab === 'drivers' && <Drivers />}
+        {activeTab === 'equipment' && <Equipment currentUser={user} />}
         {activeTab === 'jobcards' && <JobCards currentUser={user} />}
         {activeTab === 'fuel' && <Fuel currentUser={user} />}
         {activeTab === 'maintenance' && <Maintenance currentUser={user} />}
         {activeTab === 'compliance' && <Compliance currentUser={user} />}
         {activeTab === 'invoices' && <Invoices currentUser={user} />}
-        {activeTab === 'bookings' && <Bookings />}
-        {activeTab === 'users' && user.role === 'admin' && <Users currentUser={user} />}
-        {activeTab === 'activity' && user.role === 'admin' && <ActivityLogs currentUser={user} />}
+        {activeTab === 'users' && (user.role === 'superadmin' || user.role === 'admin') && <Users currentUser={user} />}
+        {activeTab === 'activity' && (user.role === 'superadmin' || user.role === 'admin') && <ActivityLogs currentUser={user} />}
       </main>
     </div>
   )
