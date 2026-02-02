@@ -106,14 +106,14 @@ export default function Users({ currentUser }) {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h2>👥 User Management</h2>
-          {currentUser?.role === 'admin' && (
+          {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
             <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
               {showForm ? 'Cancel' : '+ Add User'}
             </button>
           )}
         </div>
 
-        {showForm && currentUser?.role === 'admin' && (
+        {showForm && (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
           <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
             <h3 style={{ marginBottom: '1rem' }}>{editingUser ? 'Edit User' : 'Add New User'}</h3>
             <div className="form-row">
@@ -164,6 +164,11 @@ export default function Users({ currentUser }) {
                 >
                   <option value="staff">Staff</option>
                   <option value="admin">Admin</option>
+                  <option value="finance">Finance</option>
+                  <option value="driver">Driver</option>
+                  {currentUser?.role === 'superadmin' && (
+                    <option value="superadmin">Super Admin</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -189,7 +194,7 @@ export default function Users({ currentUser }) {
               <th>Role</th>
               <th>Status</th>
               <th>Joined</th>
-              {currentUser?.role === 'admin' && <th>Actions</th>}
+              {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -202,8 +207,18 @@ export default function Users({ currentUser }) {
                 <td>{user.email}</td>
                 <td>{user.phone || '-'}</td>
                 <td>
-                  <span className={`badge ${user.role === 'admin' ? 'admin' : 'staff'}`}>
-                    {user.role === 'admin' ? '👑 Admin' : '👤 Staff'}
+                  <span className={`badge ${
+                    user.role === 'superadmin' ? 'admin' : 
+                    user.role === 'admin' ? 'admin' : 
+                    user.role === 'finance' ? 'available' : 
+                    user.role === 'driver' ? 'in-use' : 
+                    'staff'
+                  }`}>
+                    {user.role === 'superadmin' ? '⭐ Super Admin' : 
+                     user.role === 'admin' ? '👑 Admin' : 
+                     user.role === 'finance' ? '💰 Finance' : 
+                     user.role === 'driver' ? '🚗 Driver' : 
+                     '👤 Staff'}
                   </span>
                 </td>
                 <td>
@@ -212,7 +227,7 @@ export default function Users({ currentUser }) {
                   </span>
                 </td>
                 <td>{new Date(user.created_at).toLocaleDateString()}</td>
-                {currentUser?.role === 'admin' && (
+                {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button 

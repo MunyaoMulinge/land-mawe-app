@@ -9,8 +9,9 @@ export default function Fuel({ currentUser }) {
   const [truckStats, setTruckStats] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [activeView, setActiveView] = useState('records') // records, analytics
+  const [activeView, setActiveView] = useState('records') // records, analytics, pending
   const [filter, setFilter] = useState({ truck_id: '', from_date: '', to_date: '' })
+  const [toast, setToast] = useState(null)
   const [form, setForm] = useState({
     truck_id: '',
     driver_id: '',
@@ -55,6 +56,11 @@ export default function Fuel({ currentUser }) {
 
   useEffect(() => { fetchData() }, [filter])
 
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 5000)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -67,6 +73,8 @@ export default function Fuel({ currentUser }) {
         body: JSON.stringify(form)
       })
       if (!res.ok) throw new Error('Failed to record fuel')
+      
+      showToast('✅ Fuel record submitted! Pending finance approval.', 'success')
       
       setForm({
         truck_id: '',
@@ -83,6 +91,24 @@ export default function Fuel({ currentUser }) {
         notes: ''
       })
       setShowForm(false)
+      fetchData()
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  const handleApproval = async (id, status) => {
+    try {
+      const res = await fetch(`${API_BASE}/fuel/${id}/approve`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id
+        },
+        body: JSON.stringify({ approval_status: status })
+      })
+      if (!res.ok) throw new Error('Failed to update approval status')
+      showToast(`Fuel record ${status}!`, 'success')
       fetchData()
     } catch (err) {
       alert(err.message)
@@ -111,6 +137,24 @@ export default function Fuel({ currentUser }) {
 
   return (
     <div>
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '1rem 1.5rem',
+          background: toast.type === 'success' ? '#d4edda' : '#f8d7da',
+          color: toast.type === 'success' ? '#155724' : '#721c24',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Stats Cards */}
       {stats && (
         <div className="stats-grid">
@@ -148,6 +192,14 @@ export default function Fuel({ currentUser }) {
           >
             📋 Fuel Records
           </button>
+          {(currentUser?.role === 'finance' || currentUser?.role === 'superadmin') && (
+            <button 
+              className={`btn ${activeView === 'pending' ? 'btn-primary' : ''}`}
+              onClick={() => setActiveView('pending')}
+            >
+              ⏳ Pending Approval
+            </button>
+          )}
           <button 
             className={`btn ${activeView === 'analytics' ? 'btn-primary' : ''}`}
             onClick={() => setActiveView('analytics')}
@@ -352,6 +404,7 @@ export default function Fuel({ currentUser }) {
                 <th>Total</th>
                 <th>Station</th>
                 <th>Payment</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -374,7 +427,23 @@ export default function Fuel({ currentUser }) {
                     </span>
                   </td>
                   <td>
-                    {currentUser?.role === 'admin' && (
+                    <span className="badge" style={{ 
+                      background: 
+                        record.approval_status === 'approved' ? '#d4edda' : 
+                        record.approval_status === 'rejected' ? '#f8d7da' : 
+                        '#fff3cd',
+                      color: 
+                        record.approval_status === 'approved' ? '#155724' : 
+                        record.approval_status === 'rejected' ? '#721c24' : 
+                        '#856404'
+                    }}>
+                      {record.approval_status === 'approved' ? '✅ Approved' : 
+                       record.approval_status === 'rejected' ? '❌ Rejected' : 
+                       '⏳ Pending'}
+                    </span>
+                  </td>
+                  <td>
+                    {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
                       <button 
                         className="btn btn-small btn-danger"
                         onClick={() => deleteRecord(record.id)}
@@ -392,6 +461,73 @@ export default function Fuel({ currentUser }) {
           {fuelRecords.length === 0 && (
             <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
               No fuel records found. Add one to get started.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Pending Approval View (Finance Only) */}
+      {activeView === 'pending' && (currentUser?.role === 'finance' || currentUser?.role === 'superadmin') && (
+        <div className="card">
+          <h2 style={{ marginBottom: '1rem' }}>⏳ Pending Fuel Approvals</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Truck</th>
+                <th>Driver</th>
+                <th>Liters</th>
+                <th>Cost/L</th>
+                <th>Total</th>
+                <th>Station</th>
+                <th>Payment</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fuelRecords.filter(r => r.approval_status === 'pending').map(record => (
+                <tr key={record.id} style={{ background: '#fff3cd' }}>
+                  <td>{new Date(record.fuel_date).toLocaleDateString()}</td>
+                  <td><strong>{record.truck_plate}</strong></td>
+                  <td>{record.driver_name || '-'}</td>
+                  <td><strong>{parseFloat(record.quantity_liters).toFixed(1)}L</strong></td>
+                  <td>{formatCurrency(record.cost_per_liter)}</td>
+                  <td><strong style={{ color: '#e67e22' }}>{formatCurrency(record.total_cost)}</strong></td>
+                  <td>{record.fuel_station || '-'}</td>
+                  <td>
+                    <span className="badge" style={{ 
+                      background: record.payment_method === 'cash' ? '#d4edda' : '#cce5ff',
+                      color: record.payment_method === 'cash' ? '#155724' : '#004085'
+                    }}>
+                      {record.payment_method}
+                    </span>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        className="btn btn-small btn-success"
+                        onClick={() => handleApproval(record.id, 'approved')}
+                        title="Approve"
+                      >
+                        ✅ Approve
+                      </button>
+                      <button 
+                        className="btn btn-small btn-danger"
+                        onClick={() => handleApproval(record.id, 'rejected')}
+                        title="Reject"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {fuelRecords.filter(r => r.approval_status === 'pending').length === 0 && (
+            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+              No pending fuel records to approve.
             </p>
           )}
         </div>
