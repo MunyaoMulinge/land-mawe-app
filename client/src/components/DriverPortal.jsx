@@ -10,6 +10,7 @@ export default function DriverPortal({ currentUser }) {
   const [loading, setLoading] = useState(true)
   const [activeView, setActiveView] = useState('overview')
   const [showFuelForm, setShowFuelForm] = useState(false)
+  const [toast, setToast] = useState(null)
   const [fuelForm, setFuelForm] = useState({
     truck_id: '',
     fuel_date: new Date().toISOString().split('T')[0],
@@ -72,6 +73,11 @@ export default function DriverPortal({ currentUser }) {
   const formatDate = (date) => new Date(date).toLocaleDateString()
   const formatCurrency = (amount) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount || 0)
 
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 5000)
+  }
+
   const handleFuelSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -97,7 +103,7 @@ export default function DriverPortal({ currentUser }) {
 
       if (!res.ok) throw new Error('Failed to add fuel record')
 
-      alert('✅ Fuel record submitted! Pending finance approval.')
+      showToast('✅ Fuel record submitted! Pending finance approval.', 'success')
       setShowFuelForm(false)
       setFuelForm({
         truck_id: '',
@@ -113,7 +119,7 @@ export default function DriverPortal({ currentUser }) {
       })
       fetchDriverData()
     } catch (err) {
-      alert('Error: ' + err.message)
+      showToast('Error: ' + err.message, 'error')
     }
   }
 
@@ -162,6 +168,25 @@ export default function DriverPortal({ currentUser }) {
 
   return (
     <div>
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '1rem 1.5rem',
+          background: toast.type === 'success' ? '#d4edda' : '#f8d7da',
+          color: toast.type === 'success' ? '#155724' : '#721c24',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          animation: 'slideIn 0.3s ease-out',
+          maxWidth: '400px'
+        }}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="card" style={{ background: 'var(--gradient-primary)', color: 'white', marginBottom: '1.5rem' }}>
         <h2 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.5rem' }}>
