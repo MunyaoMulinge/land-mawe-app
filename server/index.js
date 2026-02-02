@@ -2294,7 +2294,8 @@ app.post('/api/fuel', async (req, res) => {
         odometer_reading,
         fuel_type: fuel_type || 'diesel',
         payment_method: payment_method || 'cash',
-        notes
+        notes,
+        approval_status: 'pending'
       }])
       .select()
       .single();

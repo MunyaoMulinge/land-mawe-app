@@ -82,14 +82,22 @@ export default function DriverPortal({ currentUser }) {
           'x-user-id': currentUser.id
         },
         body: JSON.stringify({
-          ...fuelForm,
-          driver_id: driverInfo.id
+          truck_id: fuelForm.truck_id,
+          driver_id: driverInfo.id,
+          fuel_date: fuelForm.fuel_date,
+          quantity_liters: fuelForm.quantity_liters,
+          cost_per_liter: fuelForm.price_per_liter,
+          fuel_station: fuelForm.fuel_station,
+          odometer_reading: fuelForm.mileage_at_refill,
+          payment_method: fuelForm.payment_method,
+          receipt_number: fuelForm.receipt_number,
+          notes: fuelForm.notes
         })
       })
 
       if (!res.ok) throw new Error('Failed to add fuel record')
 
-      alert('✅ Fuel record added successfully!')
+      alert('✅ Fuel record submitted! Pending finance approval.')
       setShowFuelForm(false)
       setFuelForm({
         truck_id: '',
