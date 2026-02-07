@@ -102,11 +102,19 @@ export default function Compliance({ currentUser }) {
           'x-user-id': currentUser?.id
         },
         body: JSON.stringify({
-          ...form,
+          truck_id: form.truck_id || null,
+          document_type_id: form.document_type_id || null,
+          document_number: form.document_number || null,
+          provider: form.provider || null,
+          issue_date: form.issue_date || null,
+          expiry_date: form.expiry_date || null,
+          cost: form.cost ? parseFloat(form.cost) : null,
+          coverage_amount: form.coverage_amount ? parseFloat(form.coverage_amount) : null,
+          coverage_type: form.coverage_type || null,
+          notes: form.notes || null,
           document_url: documentUrl,
           document_filename: documentFilename,
-          document_size: documentSize,
-          document_file: undefined // Remove file object from JSON
+          document_size: documentSize
         })
       })
       
