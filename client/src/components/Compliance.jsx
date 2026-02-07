@@ -192,6 +192,9 @@ export default function Compliance({ currentUser }) {
   }
 
   const getStatusBadge = (doc) => {
+    if (!doc.expiry_date) {
+      return <span className="badge" style={{ background: '#e0e0e0', color: '#666' }}>NO EXPIRY</span>
+    }
     const days = doc.days_until_expiry
     if (days < 0) {
       return <span className="badge" style={{ background: '#f8d7da', color: '#721c24' }}>EXPIRED</span>
@@ -611,15 +614,19 @@ export default function Compliance({ currentUser }) {
             </thead>
             <tbody>
               {documents.map(doc => (
-                <tr key={doc.id} style={{ background: doc.days_until_expiry < 0 ? '#fff5f5' : doc.days_until_expiry <= 30 ? '#fffbeb' : 'white' }}>
-                  <td><strong>{doc.truck_plate}</strong></td>
-                  <td>{getCategoryIcon(doc.category)} {doc.document_type_name}</td>
+                <tr key={doc.id} style={{ background: doc.expiry_date && doc.days_until_expiry < 0 ? '#fff5f5' : doc.expiry_date && doc.days_until_expiry <= 30 ? '#fffbeb' : 'white' }}>
+                  <td><strong>{doc.truck_plate || 'General'}</strong></td>
+                  <td>{getCategoryIcon(doc.category)} {doc.document_type_name || 'Document'}</td>
                   <td>{doc.provider || '-'}</td>
-                  <td>{new Date(doc.expiry_date).toLocaleDateString()}</td>
+                  <td>{doc.expiry_date ? new Date(doc.expiry_date).toLocaleDateString() : '-'}</td>
                   <td>
-                    <strong style={{ color: doc.days_until_expiry < 0 ? '#dc3545' : doc.days_until_expiry <= 30 ? '#ffc107' : '#28a745' }}>
-                      {doc.days_until_expiry < 0 ? `${Math.abs(doc.days_until_expiry)} overdue` : `${doc.days_until_expiry} days`}
-                    </strong>
+                    {doc.expiry_date ? (
+                      <strong style={{ color: doc.days_until_expiry < 0 ? '#dc3545' : doc.days_until_expiry <= 30 ? '#ffc107' : '#28a745' }}>
+                        {doc.days_until_expiry < 0 ? `${Math.abs(doc.days_until_expiry)} overdue` : `${doc.days_until_expiry} days`}
+                      </strong>
+                    ) : (
+                      <span style={{ color: '#999' }}>-</span>
+                    )}
                   </td>
                   <td>{getStatusBadge(doc)}</td>
                   <td>
