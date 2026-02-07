@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import path from 'path';
 import pool from './db.js';
 import { supabase } from './supabase-client.js';
 
@@ -1628,9 +1630,6 @@ app.get('/api/compliance/alerts', async (req, res) => {
 // Upload document file to Supabase Storage
 app.post('/api/upload-document', async (req, res) => {
   try {
-    const multer = require('multer');
-    const path = require('path');
-    
     // Configure multer for memory storage (not disk)
     const storage = multer.memoryStorage();
     
