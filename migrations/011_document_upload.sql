@@ -7,6 +7,10 @@ ALTER TABLE truck_documents ADD COLUMN IF NOT EXISTS document_filename VARCHAR(2
 ALTER TABLE truck_documents ADD COLUMN IF NOT EXISTS document_size INTEGER; -- in bytes
 ALTER TABLE truck_documents ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
+-- Make fields optional for quick document upload
+ALTER TABLE truck_documents ALTER COLUMN expiry_date DROP NOT NULL;
+ALTER TABLE truck_documents ALTER COLUMN truck_id DROP NOT NULL;
+
 -- Add index for faster queries
 CREATE INDEX IF NOT EXISTS idx_truck_documents_url ON truck_documents(document_url) WHERE document_url IS NOT NULL;
 

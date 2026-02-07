@@ -58,6 +58,13 @@ export default function Compliance({ currentUser }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Validate: Must have at least a file upload
+    if (!form.document_file) {
+      alert('Please select a document to upload');
+      return;
+    }
+    
     setUploadingFile(true)
     try {
       let documentUrl = null
@@ -449,38 +456,35 @@ export default function Compliance({ currentUser }) {
                 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Truck *</label>
+                    <label>Truck</label>
                     <select 
                       value={form.truck_id}
                       onChange={e => setForm({...form, truck_id: e.target.value})}
-                      required
                     >
-                      <option value="">Select Truck</option>
+                      <option value="">Select Truck (Optional)</option>
                       {trucks.map(t => (
                         <option key={t.id} value={t.id}>{t.plate_number} - {t.model}</option>
                       ))}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Document Type *</label>
+                    <label>Document Type</label>
                     <select 
                       value={form.document_type_id}
                       onChange={e => setForm({...form, document_type_id: e.target.value})}
-                      required
                     >
-                      <option value="">Select Type</option>
+                      <option value="">Select Type (Optional)</option>
                       {documentTypes.map(t => (
                         <option key={t.id} value={t.id}>{getCategoryIcon(t.category)} {t.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Expiry Date *</label>
+                    <label>Expiry Date</label>
                     <input 
                       type="date"
                       value={form.expiry_date}
                       onChange={e => setForm({...form, expiry_date: e.target.value})}
-                      required
                     />
                   </div>
                 </div>
@@ -555,13 +559,23 @@ export default function Compliance({ currentUser }) {
                 </div>
               </details>
 
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                <button type="submit" className="btn btn-success" disabled={uploadingFile}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', alignItems: 'center' }}>
+                <button 
+                  type="submit" 
+                  className="btn btn-success" 
+                  disabled={uploadingFile || !form.document_file}
+                  style={{ opacity: !form.document_file ? 0.5 : 1 }}
+                >
                   {uploadingFile ? '⏳ Uploading...' : '💾 Save Document'}
                 </button>
                 <button type="button" className="btn" onClick={() => { setShowForm(false); resetForm(); }}>
                   Cancel
                 </button>
+                {!form.document_file && (
+                  <span style={{ color: '#f44336', fontSize: '0.9rem', marginLeft: '0.5rem' }}>
+                    ⚠️ Please select a file to upload
+                  </span>
+                )}
               </div>
             </form>
           )}
