@@ -84,7 +84,10 @@ export default function Compliance({ currentUser }) {
           body: formData
         })
 
-        if (!uploadRes.ok) throw new Error('Failed to upload document')
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json()
+          throw new Error(errorData.details || errorData.error || 'Failed to upload document')
+        }
         
         const uploadData = await uploadRes.json()
         documentUrl = uploadData.url

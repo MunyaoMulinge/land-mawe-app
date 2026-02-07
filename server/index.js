@@ -1665,6 +1665,8 @@ app.post('/api/upload-document', async (req, res) => {
         const fileName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${fileExt}`;
         const filePath = `compliance-documents/${req.body.truck_id || 'general'}/${fileName}`;
         
+        console.log('Uploading file to Supabase Storage:', filePath);
+        
         // Upload to Supabase Storage
         const { data, error } = await supabase.storage
           .from('documents')
@@ -1673,12 +1675,19 @@ app.post('/api/upload-document', async (req, res) => {
             upsert: false
           });
         
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase Storage error:', error);
+          throw new Error(`Storage upload failed: ${error.message}`);
+        }
+        
+        console.log('File uploaded successfully:', data);
         
         // Get public URL
         const { data: urlData } = supabase.storage
           .from('documents')
           .getPublicUrl(filePath);
+        
+        console.log('Public URL generated:', urlData.publicUrl);
         
         // Return file info
         res.json({
@@ -1689,7 +1698,10 @@ app.post('/api/upload-document', async (req, res) => {
         });
       } catch (uploadError) {
         console.error('Error uploading to Supabase Storage:', uploadError);
-        res.status(500).json({ error: uploadError.message });
+        res.status(500).json({ 
+          error: uploadError.message,
+          details: 'Make sure the "documents" storage bucket exists in Supabase and is set to public'
+        });
       }
     });
   } catch (err) {
