@@ -371,126 +371,198 @@ export default function Compliance({ currentUser }) {
           {showForm && (
             <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
               <h3 style={{ marginBottom: '1rem' }}>Add New Document</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Truck *</label>
-                  <select 
-                    value={form.truck_id}
-                    onChange={e => setForm({...form, truck_id: e.target.value})}
-                    required
-                  >
-                    <option value="">Select Truck</option>
-                    {trucks.map(t => (
-                      <option key={t.id} value={t.id}>{t.plate_number} - {t.model}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Document Type *</label>
-                  <select 
-                    value={form.document_type_id}
-                    onChange={e => setForm({...form, document_type_id: e.target.value})}
-                    required
-                  >
-                    <option value="">Select Type</option>
-                    {documentTypes.map(t => (
-                      <option key={t.id} value={t.id}>{getCategoryIcon(t.category)} {t.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Document Number</label>
-                  <input 
-                    value={form.document_number}
-                    onChange={e => setForm({...form, document_number: e.target.value})}
-                    placeholder="e.g. POL-12345"
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Provider/Issuer</label>
-                  <input 
-                    value={form.provider}
-                    onChange={e => setForm({...form, provider: e.target.value})}
-                    placeholder="e.g. Jubilee Insurance"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Issue Date</label>
-                  <input 
-                    type="date"
-                    value={form.issue_date}
-                    onChange={e => setForm({...form, issue_date: e.target.value})}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Expiry Date *</label>
-                  <input 
-                    type="date"
-                    value={form.expiry_date}
-                    onChange={e => setForm({...form, expiry_date: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Cost (KES)</label>
-                  <input 
-                    type="number"
-                    value={form.cost}
-                    onChange={e => setForm({...form, cost: e.target.value})}
-                    placeholder="e.g. 50000"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Coverage Amount (for insurance)</label>
-                  <input 
-                    type="number"
-                    value={form.coverage_amount}
-                    onChange={e => setForm({...form, coverage_amount: e.target.value})}
-                    placeholder="e.g. 5000000"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Coverage Type</label>
-                  <select 
-                    value={form.coverage_type}
-                    onChange={e => setForm({...form, coverage_type: e.target.value})}
-                  >
-                    <option value="">Select</option>
-                    <option value="comprehensive">Comprehensive</option>
-                    <option value="third_party">Third Party</option>
-                    <option value="third_party_fire_theft">Third Party Fire & Theft</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Upload Document (PDF, JPG, PNG)</label>
+              
+              {/* Quick Upload Section - Highlighted */}
+              <div style={{ 
+                background: '#e3f2fd', 
+                padding: '1rem', 
+                borderRadius: '8px', 
+                marginBottom: '1rem',
+                border: '2px dashed #2196f3'
+              }}>
+                <h4 style={{ marginBottom: '0.5rem', color: '#1976d2' }}>📎 Quick Upload</h4>
+                <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.75rem' }}>
+                  Upload your document here. You can fill in the details below or just upload the file.
+                </p>
                 <input 
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={e => setForm({...form, document_file: e.target.files[0]})}
-                  style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px', width: '100%' }}
+                  style={{ 
+                    padding: '0.75rem', 
+                    border: '2px solid #2196f3', 
+                    borderRadius: '4px', 
+                    width: '100%',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
                 />
                 {form.document_file && (
-                  <small style={{ color: '#666', marginTop: '0.25rem', display: 'block' }}>
-                    📎 {form.document_file.name} ({(form.document_file.size / 1024).toFixed(1)} KB)
-                  </small>
+                  <div style={{ 
+                    marginTop: '0.5rem', 
+                    padding: '0.5rem', 
+                    background: 'white', 
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <span style={{ fontSize: '1.5rem' }}>
+                      {form.document_file.name.endsWith('.pdf') ? '📄' : '🖼️'}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', color: '#1976d2' }}>{form.document_file.name}</div>
+                      <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                        {(form.document_file.size / 1024).toFixed(1)} KB
+                      </div>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setForm({...form, document_file: null})}
+                      style={{ 
+                        background: '#f44336', 
+                        color: 'white', 
+                        border: 'none', 
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 )}
               </div>
-              <div className="form-group">
-                <label>Notes</label>
-                <input 
-                  value={form.notes}
-                  onChange={e => setForm({...form, notes: e.target.value})}
-                  placeholder="Additional notes..."
-                />
+
+              {/* Optional Details Section */}
+              <details open>
+                <summary style={{ 
+                  cursor: 'pointer', 
+                  fontWeight: 'bold', 
+                  marginBottom: '1rem',
+                  padding: '0.5rem',
+                  background: '#f0f0f0',
+                  borderRadius: '4px'
+                }}>
+                  📋 Document Details (Optional)
+                </summary>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Truck *</label>
+                    <select 
+                      value={form.truck_id}
+                      onChange={e => setForm({...form, truck_id: e.target.value})}
+                      required
+                    >
+                      <option value="">Select Truck</option>
+                      {trucks.map(t => (
+                        <option key={t.id} value={t.id}>{t.plate_number} - {t.model}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Document Type *</label>
+                    <select 
+                      value={form.document_type_id}
+                      onChange={e => setForm({...form, document_type_id: e.target.value})}
+                      required
+                    >
+                      <option value="">Select Type</option>
+                      {documentTypes.map(t => (
+                        <option key={t.id} value={t.id}>{getCategoryIcon(t.category)} {t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Expiry Date *</label>
+                    <input 
+                      type="date"
+                      value={form.expiry_date}
+                      onChange={e => setForm({...form, expiry_date: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Document Number</label>
+                    <input 
+                      value={form.document_number}
+                      onChange={e => setForm({...form, document_number: e.target.value})}
+                      placeholder="e.g. POL-12345"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Provider/Issuer</label>
+                    <input 
+                      value={form.provider}
+                      onChange={e => setForm({...form, provider: e.target.value})}
+                      placeholder="e.g. Jubilee Insurance"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Issue Date</label>
+                    <input 
+                      type="date"
+                      value={form.issue_date}
+                      onChange={e => setForm({...form, issue_date: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Cost (KES)</label>
+                    <input 
+                      type="number"
+                      value={form.cost}
+                      onChange={e => setForm({...form, cost: e.target.value})}
+                      placeholder="e.g. 50000"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Coverage Amount (for insurance)</label>
+                    <input 
+                      type="number"
+                      value={form.coverage_amount}
+                      onChange={e => setForm({...form, coverage_amount: e.target.value})}
+                      placeholder="e.g. 5000000"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Coverage Type</label>
+                    <select 
+                      value={form.coverage_type}
+                      onChange={e => setForm({...form, coverage_type: e.target.value})}
+                    >
+                      <option value="">Select</option>
+                      <option value="comprehensive">Comprehensive</option>
+                      <option value="third_party">Third Party</option>
+                      <option value="third_party_fire_theft">Third Party Fire & Theft</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="form-group">
+                  <label>Notes</label>
+                  <input 
+                    value={form.notes}
+                    onChange={e => setForm({...form, notes: e.target.value})}
+                    placeholder="Additional notes..."
+                  />
+                </div>
+              </details>
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                <button type="submit" className="btn btn-success" disabled={uploadingFile}>
+                  {uploadingFile ? '⏳ Uploading...' : '💾 Save Document'}
+                </button>
+                <button type="button" className="btn" onClick={() => { setShowForm(false); resetForm(); }}>
+                  Cancel
+                </button>
               </div>
-              <button type="submit" className="btn btn-success" disabled={uploadingFile}>
-                {uploadingFile ? '⏳ Uploading...' : '💾 Save Document'}
-              </button>
             </form>
           )}
 
