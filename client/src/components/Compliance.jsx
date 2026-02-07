@@ -59,9 +59,9 @@ export default function Compliance({ currentUser }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // Validate: Must have at least a file upload
-    if (!form.document_file) {
-      alert('Please select a document to upload');
+    // Validate: Must have either a file upload OR at least truck + document type + expiry
+    if (!form.document_file && (!form.truck_id || !form.document_type_id || !form.expiry_date)) {
+      alert('Please either:\n1. Upload a document file, OR\n2. Fill in Truck, Document Type, and Expiry Date');
       return;
     }
     
@@ -406,9 +406,9 @@ export default function Compliance({ currentUser }) {
                 marginBottom: '1rem',
                 border: '2px dashed #2196f3'
               }}>
-                <h4 style={{ marginBottom: '0.5rem', color: '#1976d2' }}>📎 Quick Upload</h4>
+                <h4 style={{ marginBottom: '0.5rem', color: '#1976d2' }}>📎 Quick Upload (Optional)</h4>
                 <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.75rem' }}>
-                  Upload your document here. You can fill in the details below or just upload the file.
+                  Upload your document here, or skip and just fill in the details below.
                 </p>
                 <input 
                   type="file"
@@ -470,40 +470,41 @@ export default function Compliance({ currentUser }) {
                   background: '#f0f0f0',
                   borderRadius: '4px'
                 }}>
-                  📋 Document Details (Optional)
+                  📋 Document Details {!form.document_file && '(Required if no file uploaded)'}
                 </summary>
                 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Truck</label>
+                    <label>Truck {!form.document_file && '*'}</label>
                     <select 
                       value={form.truck_id}
                       onChange={e => setForm({...form, truck_id: e.target.value})}
                     >
-                      <option value="">Select Truck (Optional)</option>
+                      <option value="">Select Truck {form.document_file && '(Optional)'}</option>
                       {trucks.map(t => (
                         <option key={t.id} value={t.id}>{t.plate_number} - {t.model}</option>
                       ))}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Document Type</label>
+                    <label>Document Type {!form.document_file && '*'}</label>
                     <select 
                       value={form.document_type_id}
                       onChange={e => setForm({...form, document_type_id: e.target.value})}
                     >
-                      <option value="">Select Type (Optional)</option>
+                      <option value="">Select Type {form.document_file && '(Optional)'}</option>
                       {documentTypes.map(t => (
                         <option key={t.id} value={t.id}>{getCategoryIcon(t.category)} {t.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Expiry Date</label>
+                    <label>Expiry Date {!form.document_file && '*'}</label>
                     <input 
                       type="date"
                       value={form.expiry_date}
                       onChange={e => setForm({...form, expiry_date: e.target.value})}
+                      placeholder={form.document_file ? 'Optional' : 'Required'}
                     />
                   </div>
                 </div>
@@ -582,17 +583,17 @@ export default function Compliance({ currentUser }) {
                 <button 
                   type="submit" 
                   className="btn btn-success" 
-                  disabled={uploadingFile || !form.document_file}
-                  style={{ opacity: !form.document_file ? 0.5 : 1 }}
+                  disabled={uploadingFile || (!form.document_file && (!form.truck_id || !form.document_type_id || !form.expiry_date))}
+                  style={{ opacity: (!form.document_file && (!form.truck_id || !form.document_type_id || !form.expiry_date)) ? 0.5 : 1 }}
                 >
                   {uploadingFile ? '⏳ Uploading...' : '💾 Save Document'}
                 </button>
                 <button type="button" className="btn" onClick={() => { setShowForm(false); resetForm(); }}>
                   Cancel
                 </button>
-                {!form.document_file && (
+                {!form.document_file && (!form.truck_id || !form.document_type_id || !form.expiry_date) && (
                   <span style={{ color: '#f44336', fontSize: '0.9rem', marginLeft: '0.5rem' }}>
-                    ⚠️ Please select a file to upload
+                    ⚠️ Upload a file OR fill in required details
                   </span>
                 )}
               </div>
