@@ -1625,11 +1625,85 @@ app.get('/api/compliance/alerts', async (req, res) => {
   }
 });
 
+// Upload document file to Supabase Storage
+app.post('/api/upload-document', async (req, res) => {
+  try {
+    const multer = require('multer');
+    const path = require('path');
+    
+    // Configure multer for memory storage (not disk)
+    const storage = multer.memoryStorage();
+    
+    const upload = multer({ 
+      storage,
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+      fileFilter: (req, file, cb) => {
+        const allowedTypes = /pdf|jpg|jpeg|png/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (extname && mimetype) {
+          return cb(null, true);
+        } else {
+          cb(new Error('Only PDF, JPG, and PNG files are allowed'));
+        }
+      }
+    }).single('file');
+    
+    upload(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      try {
+        // Generate unique filename
+        const fileExt = path.extname(req.file.originalname);
+        const fileName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${fileExt}`;
+        const filePath = `compliance-documents/${req.body.truck_id || 'general'}/${fileName}`;
+        
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from('documents')
+          .upload(filePath, req.file.buffer, {
+            contentType: req.file.mimetype,
+            upsert: false
+          });
+        
+        if (error) throw error;
+        
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('documents')
+          .getPublicUrl(filePath);
+        
+        // Return file info
+        res.json({
+          url: urlData.publicUrl,
+          filename: req.file.originalname,
+          size: req.file.size,
+          path: filePath
+        });
+      } catch (uploadError) {
+        console.error('Error uploading to Supabase Storage:', uploadError);
+        res.status(500).json({ error: uploadError.message });
+      }
+    });
+  } catch (err) {
+    console.error('Error uploading document:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Create truck document
 app.post('/api/truck-documents', async (req, res) => {
   const { 
     truck_id, document_type_id, document_number, provider,
-    issue_date, expiry_date, cost, coverage_amount, coverage_type, notes
+    issue_date, expiry_date, cost, coverage_amount, coverage_type, notes,
+    document_url, document_filename, document_size
   } = req.body;
   const userId = req.headers['x-user-id'];
   
@@ -1647,6 +1721,9 @@ app.post('/api/truck-documents', async (req, res) => {
         coverage_amount,
         coverage_type,
         notes,
+        document_url,
+        document_filename,
+        document_size,
         status: 'active',
         created_by: userId
       }])

@@ -12,6 +12,7 @@ export default function Compliance({ currentUser }) {
   const [activeView, setActiveView] = useState('dashboard')
   const [filter, setFilter] = useState({ truck_id: '', category: '', status: '' })
   const [renewingDoc, setRenewingDoc] = useState(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
   const [form, setForm] = useState({
     truck_id: '',
     document_type_id: '',
@@ -22,7 +23,8 @@ export default function Compliance({ currentUser }) {
     cost: '',
     coverage_amount: '',
     coverage_type: '',
-    notes: ''
+    notes: '',
+    document_file: null
   })
 
   const fetchData = async () => {
@@ -56,14 +58,46 @@ export default function Compliance({ currentUser }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setUploadingFile(true)
     try {
+      let documentUrl = null
+      let documentFilename = null
+      let documentSize = null
+
+      // Handle file upload if present
+      if (form.document_file) {
+        const formData = new FormData()
+        formData.append('file', form.document_file)
+        formData.append('truck_id', form.truck_id)
+        formData.append('document_type', 'compliance')
+
+        const uploadRes = await fetch(`${API_BASE}/upload-document`, {
+          method: 'POST',
+          headers: { 'x-user-id': currentUser?.id },
+          body: formData
+        })
+
+        if (!uploadRes.ok) throw new Error('Failed to upload document')
+        
+        const uploadData = await uploadRes.json()
+        documentUrl = uploadData.url
+        documentFilename = uploadData.filename
+        documentSize = uploadData.size
+      }
+
       const res = await fetch(`${API_BASE}/truck-documents`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'x-user-id': currentUser?.id
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify({
+          ...form,
+          document_url: documentUrl,
+          document_filename: documentFilename,
+          document_size: documentSize,
+          document_file: undefined // Remove file object from JSON
+        })
       })
       if (!res.ok) throw new Error('Failed to create document')
       
@@ -72,6 +106,8 @@ export default function Compliance({ currentUser }) {
       fetchData()
     } catch (err) {
       alert(err.message)
+    } finally {
+      setUploadingFile(false)
     }
   }
 
@@ -112,7 +148,8 @@ export default function Compliance({ currentUser }) {
       cost: '',
       coverage_amount: '',
       coverage_type: '',
-      notes: ''
+      notes: '',
+      document_file: null
     })
   }
 
@@ -429,7 +466,31 @@ export default function Compliance({ currentUser }) {
                   </select>
                 </div>
               </div>
-              <button type="submit" className="btn btn-success">💾 Save Document</button>
+              <div className="form-group">
+                <label>Upload Document (PDF, JPG, PNG)</label>
+                <input 
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={e => setForm({...form, document_file: e.target.files[0]})}
+                  style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px', width: '100%' }}
+                />
+                {form.document_file && (
+                  <small style={{ color: '#666', marginTop: '0.25rem', display: 'block' }}>
+                    📎 {form.document_file.name} ({(form.document_file.size / 1024).toFixed(1)} KB)
+                  </small>
+                )}
+              </div>
+              <div className="form-group">
+                <label>Notes</label>
+                <input 
+                  value={form.notes}
+                  onChange={e => setForm({...form, notes: e.target.value})}
+                  placeholder="Additional notes..."
+                />
+              </div>
+              <button type="submit" className="btn btn-success" disabled={uploadingFile}>
+                {uploadingFile ? '⏳ Uploading...' : '💾 Save Document'}
+              </button>
             </form>
           )}
 
@@ -442,6 +503,7 @@ export default function Compliance({ currentUser }) {
                 <th>Expiry</th>
                 <th>Days Left</th>
                 <th>Status</th>
+                <th>File</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -458,6 +520,21 @@ export default function Compliance({ currentUser }) {
                     </strong>
                   </td>
                   <td>{getStatusBadge(doc)}</td>
+                  <td>
+                    {doc.document_url ? (
+                      <a 
+                        href={doc.document_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn btn-small"
+                        title="View document"
+                      >
+                        📄 View
+                      </a>
+                    ) : (
+                      <span style={{ color: '#999', fontSize: '0.85rem' }}>No file</span>
+                    )}
+                  </td>
                   <td>
                     <button 
                       className="btn btn-small btn-primary"
