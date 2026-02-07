@@ -1741,14 +1741,21 @@ app.post('/api/truck-documents', async (req, res) => {
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error creating document:', JSON.stringify(error, null, 2));
+      throw error;
+    }
     
     await logActivity(userId, 'DOCUMENT_CREATED', 'truck_document', data.id, { truck_id, document_type_id });
     
     res.json(data);
   } catch (err) {
     console.error('Error creating truck document:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Error details:', JSON.stringify(err, null, 2));
+    res.status(500).json({ 
+      error: err.message || 'Failed to create document',
+      details: err.details || err.hint || 'Check server logs for more information'
+    });
   }
 });
 

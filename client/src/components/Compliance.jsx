@@ -109,7 +109,12 @@ export default function Compliance({ currentUser }) {
           document_file: undefined // Remove file object from JSON
         })
       })
-      if (!res.ok) throw new Error('Failed to create document')
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        console.error('Document creation error:', errorData)
+        throw new Error(errorData.error || 'Failed to create document')
+      }
       
       resetForm()
       setShowForm(false)
