@@ -3,7 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import pool from './db.js';
-import { supabase } from './supabase-client.js';
+import { supabase, supabaseAdmin } from './supabase-client.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1666,8 +1666,8 @@ app.post('/api/upload-document', async (req, res) => {
         
         console.log('Uploading file to Supabase Storage:', filePath);
         
-        // Upload to Supabase Storage
-        const { data, error } = await supabase.storage
+        // Upload to Supabase Storage using admin client for better permissions
+        const { data, error } = await supabaseAdmin.storage
           .from('documents')
           .upload(filePath, req.file.buffer, {
             contentType: req.file.mimetype,
@@ -1675,13 +1675,13 @@ app.post('/api/upload-document', async (req, res) => {
           });
         
         if (error) {
-          console.error('Supabase Storage error:', error);
-          throw new Error(`Storage upload failed: ${error.message}`);
+          console.error('Supabase Storage error:', JSON.stringify(error, null, 2));
+          throw new Error(`Storage upload failed: ${error.message || JSON.stringify(error)}`);
         }
         
         console.log('File uploaded successfully:', data);
         
-        // Get public URL
+        // Get public URL using regular client
         const { data: urlData } = supabase.storage
           .from('documents')
           .getPublicUrl(filePath);
