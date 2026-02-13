@@ -171,7 +171,13 @@ export default function Users({ currentUser }) {
             </button>
           </div>
           {searchQuery && (
-            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+            <p
+              style={{
+                fontSize: "0.8rem",
+                color: "var(--text-muted)",
+                marginTop: "0.5rem",
+              }}
+            >
               Showing {filteredUsers.length} of {users.length} users
             </p>
           )}
@@ -363,7 +369,13 @@ export default function Users({ currentUser }) {
         </table>
 
         {filteredUsers.length === 0 && (
-          <p style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>
+          <p
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              color: "var(--text-muted)",
+            }}
+          >
             {searchQuery ? "No users match your search" : "No users found"}
           </p>
         )}
