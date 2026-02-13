@@ -130,7 +130,8 @@ body {
 .nav::-webkit-scrollbar { height: 4px; }
 .nav::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
 
-.nav button {
+.nav button,
+.nav a {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-color);
   background: var(--bg-secondary);
@@ -142,12 +143,17 @@ body {
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
-.nav button:hover { 
+.nav button:hover,
+.nav a:hover { 
   background: var(--bg-tertiary); 
   border-color: var(--accent-primary);
 }
-.nav button.active { 
+.nav button.active,
+.nav a.active { 
   background: var(--accent-primary); 
   color: white; 
   border-color: var(--accent-primary); 
@@ -466,7 +472,8 @@ div[style*="position: fixed"] > div {
   .header p { display: inline; }
   
   .nav { padding: 0.75rem 2rem; }
-  .nav button { padding: 0.6rem 1rem; font-size: 0.85rem; }
+  .nav button,
+  .nav a { padding: 0.6rem 1rem; font-size: 0.85rem; }
   
   .main { padding: 1.5rem 2rem; }
   
