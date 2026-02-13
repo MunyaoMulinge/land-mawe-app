@@ -14,6 +14,7 @@ export default function Users({ currentUser }) {
     phone: "",
     role: "staff",
   });
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchUsers = async () => {
     try {
@@ -100,6 +101,18 @@ export default function Users({ currentUser }) {
     setShowForm(false);
   };
 
+  // Filter users based on search query
+  const filteredUsers = users.filter((user) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      user.name?.toLowerCase().includes(query) ||
+      user.email?.toLowerCase().includes(query) ||
+      user.phone?.toLowerCase().includes(query) ||
+      user.role?.toLowerCase().includes(query)
+    );
+  });
+
   if (loading) return <div className="loading">Loading users...</div>;
   if (error) return <div className="error">Error: {error}</div>;
 
@@ -123,6 +136,44 @@ export default function Users({ currentUser }) {
             >
               {showForm ? "Cancel" : "+ Add User"}
             </button>
+          )}
+        </div>
+
+        {/* Search Bar */}
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", maxWidth: "400px" }}>
+            <input
+              type="text"
+              placeholder="Search by name, email, phone or role..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: 1,
+                padding: "0.5rem 0.75rem",
+                borderRadius: "6px",
+                border: "1px solid var(--border-color)",
+                background: "var(--bg-secondary)",
+                color: "var(--text-primary)",
+                fontSize: "0.9rem",
+              }}
+            />
+            {searchQuery && (
+              <button
+                className="btn"
+                onClick={() => setSearchQuery("")}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => {}}>
+              🔍 Search
+            </button>
+          </div>
+          {searchQuery && (
+            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+              Showing {filteredUsers.length} of {users.length} users
+            </p>
           )}
         </div>
 
@@ -230,7 +281,7 @@ export default function Users({ currentUser }) {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
               <tr key={user.id} style={{ opacity: user.is_active ? 1 : 0.5 }}>
                 <td>
                   {user.name}
@@ -311,9 +362,9 @@ export default function Users({ currentUser }) {
           </tbody>
         </table>
 
-        {users.length === 0 && (
-          <p style={{ textAlign: "center", padding: "2rem", color: "#666" }}>
-            No users found
+        {filteredUsers.length === 0 && (
+          <p style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>
+            {searchQuery ? "No users match your search" : "No users found"}
           </p>
         )}
       </div>
