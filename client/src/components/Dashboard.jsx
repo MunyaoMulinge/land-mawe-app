@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { API_BASE } from '../config'
 import { useTheme } from '../hooks/useTheme'
+import { gsap } from 'gsap'
 
 export default function Dashboard() {
   const { theme } = useTheme()
+  const statsRef = useRef(null)
   const [truckStats, setTruckStats] = useState({ available: 0, booked: 0, maintenance: 0 })
   const [fuelStats, setFuelStats] = useState(null)
   const [maintenanceStats, setMaintenanceStats] = useState(null)
@@ -48,6 +50,24 @@ export default function Dashboard() {
       setUpcomingMaintenance(upcomingRes)
       setRecentBookings(bookingsRes.slice(0, 5))
       setLoading(false)
+      
+      // Animate stat cards after data loads
+      setTimeout(() => {
+        if (statsRef.current) {
+          const cards = statsRef.current.querySelectorAll('.stat-card')
+          gsap.fromTo(cards,
+            { opacity: 0, y: 30, scale: 0.95 },
+            { 
+              opacity: 1, 
+              y: 0, 
+              scale: 1,
+              duration: 0.5, 
+              stagger: 0.1,
+              ease: 'back.out(1.7)'
+            }
+          )
+        }
+      }, 100)
     } catch (err) {
       console.error('Dashboard error:', err)
       setLoading(false)
@@ -91,7 +111,7 @@ export default function Dashboard() {
 
       {/* Fleet Overview */}
       <h3 style={{ marginBottom: '0.5rem', color: theme === 'dark' ? '#fff' : '#333' }}>🚛 Fleet Overview</h3>
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '1.5rem' }}>
+      <div ref={statsRef} className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '1.5rem' }}>
         <div className="stat-card" style={{ borderLeft: '4px solid #28a745' }}>
           <div className="number" style={{ color: '#28a745' }}>{truckStats.available}</div>
           <div className="label">Available</div>

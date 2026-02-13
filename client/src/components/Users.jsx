@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { API_BASE } from "../config";
+import { gsap } from "gsap";
 
 export default function Users({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -15,6 +16,7 @@ export default function Users({ currentUser }) {
     role: "staff",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const tableRef = useRef(null);
 
   const fetchUsers = async () => {
     try {
@@ -112,6 +114,18 @@ export default function Users({ currentUser }) {
       user.role?.toLowerCase().includes(query)
     );
   });
+
+  // Animate table rows when filtered users change
+  useEffect(() => {
+    if (tableRef.current && !loading && filteredUsers.length > 0) {
+      const rows = tableRef.current.querySelectorAll("tbody tr");
+      gsap.fromTo(
+        rows,
+        { opacity: 0, x: -20 },
+        { opacity: 1, x: 0, duration: 0.3, stagger: 0.03, ease: "power2.out" }
+      );
+    }
+  }, [filteredUsers.length, loading]);
 
   if (loading) return <div className="loading">Loading users...</div>;
   if (error) return <div className="error">Error: {error}</div>;
@@ -273,7 +287,7 @@ export default function Users({ currentUser }) {
             </form>
           )}
 
-        <table>
+        <table ref={tableRef}>
           <thead>
             <tr>
               <th>Name</th>
