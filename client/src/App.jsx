@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, Outlet } from 'react-router-dom'
 import { useTheme } from './hooks/useTheme'
+import { useSession, getSessionInfo, formatTimeRemaining } from './hooks/useSession'
+import IdleWarningModal from './components/IdleWarningModal'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import Trucks from './components/Trucks'
@@ -42,10 +44,44 @@ function ProtectedRoute({ user, allowedRoles, children }) {
   return children
 }
 
+// Session Timer Component
+function SessionTimer() {
+  const [timeLeft, setTimeLeft] = useState('')
+  
+  useEffect(() => {
+    const updateTimer = () => {
+      const session = getSessionInfo()
+      if (session) {
+        setTimeLeft(formatTimeRemaining(session.idleTimeRemaining))
+      }
+    }
+    
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+    return () => clearInterval(interval)
+  }, [])
+  
+  return (
+    <span style={{ 
+      fontSize: '0.7rem', 
+      opacity: 0.8,
+      background: 'rgba(255,255,255,0.2)',
+      padding: '0.25rem 0.5rem',
+      borderRadius: '4px'
+    }}>
+      ⏱️ {timeLeft}
+    </span>
+  )
+}
+
 // Layout component with header and navigation
 function Layout({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
+  const [showWarning, setShowWarning] = useState(false)
+  
+  // Initialize session management
+  const { showWarning: sessionWarning } = useSession(onLogout, () => setShowWarning(true))
   
   // Filter tabs based on user role
   const tabs = baseTabs.filter(tab => tab.roles.includes(user.role || 'staff'))
@@ -85,6 +121,7 @@ function Layout({ user, onLogout }) {
             }}>
               {getRoleDisplay(user.role)}
             </span>
+            <SessionTimer />
           </div>
           <button 
             onClick={onLogout}
@@ -115,6 +152,14 @@ function Layout({ user, onLogout }) {
       <main className="main">
         <Outlet />
       </main>
+      
+      {/* Idle Warning Modal */}
+      {(showWarning || sessionWarning) && (
+        <IdleWarningModal 
+          onStayActive={() => setShowWarning(false)}
+          onLogout={onLogout}
+        />
+      )}
     </div>
   )
 }
@@ -122,6 +167,10 @@ function Layout({ user, onLogout }) {
 // Driver Layout (simpler, no navigation)
 function DriverLayout({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme()
+  const [showWarning, setShowWarning] = useState(false)
+  
+  // Initialize session management
+  const { showWarning: sessionWarning } = useSession(onLogout, () => setShowWarning(true))
 
   return (
     <div className="app">
@@ -167,6 +216,14 @@ function DriverLayout({ user, onLogout }) {
       <main className="main">
         <Outlet />
       </main>
+      
+      {/* Idle Warning Modal */}
+      {(showWarning || sessionWarning) && (
+        <IdleWarningModal 
+          onStayActive={() => setShowWarning(false)}
+          onLogout={onLogout}
+        />
+      )}
     </div>
   )
 }
@@ -177,8 +234,22 @@ function App() {
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    const sessionStart = localStorage.getItem('sessionStart')
+    
+    if (savedUser && sessionStart) {
+      const sessionAge = Date.now() - parseInt(sessionStart)
+      const TOKEN_LIFETIME = 24 * 60 * 60 * 1000 // 24 hours
+      
+      if (sessionAge > TOKEN_LIFETIME) {
+        // Session expired, clear everything
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        localStorage.removeItem('sessionStart')
+        localStorage.removeItem('lastActivity')
+        alert('Your session has expired. Please log in again.')
+      } else {
+        setUser(JSON.parse(savedUser))
+      }
     }
     setIsLoading(false)
   }, [])
@@ -186,12 +257,17 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    localStorage.removeItem('sessionStart')
+    localStorage.removeItem('lastActivity')
     setUser(null)
   }
 
   const handleLogin = (userData) => {
     setUser(userData)
     localStorage.setItem('user', JSON.stringify(userData))
+    // Initialize session
+    localStorage.setItem('sessionStart', Date.now().toString())
+    localStorage.setItem('lastActivity', Date.now().toString())
   }
 
   if (isLoading) {
