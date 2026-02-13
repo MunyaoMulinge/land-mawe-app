@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { Formik, Form } from "formik";
 import { API_BASE } from "../config";
 import { gsap } from "gsap";
-import { useButtonHover, useShake } from "../hooks/useAnimations";
+import { useShake } from "../hooks/useAnimations";
 import AnimatedLoader from "./AnimatedLoader";
+import FormikField from "./FormikField";
+import { userSchema } from "../validations/schemas";
 
 export default function Users({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -10,13 +13,6 @@ export default function Users({ currentUser }) {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    phone: "",
-    role: "staff",
-  });
   const [searchQuery, setSearchQuery] = useState("");
   const tableRef = useRef(null);
   const [deleteButtonRef, shakeDelete] = useShake();
@@ -40,8 +36,7 @@ export default function Users({ currentUser }) {
     fetchUsers();
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
       const url = editingUser
         ? `${API_BASE}/users/${editingUser.id}`
@@ -49,8 +44,8 @@ export default function Users({ currentUser }) {
 
       const method = editingUser ? "PATCH" : "POST";
       const body = editingUser
-        ? { name: form.name, phone: form.phone, role: form.role }
-        : form;
+        ? { name: values.name, phone: values.phone, role: values.role }
+        : values;
 
       const res = await fetch(url, {
         method,
@@ -66,12 +61,14 @@ export default function Users({ currentUser }) {
         throw new Error(err.error || "Failed to save user");
       }
 
-      setForm({ name: "", email: "", password: "", phone: "", role: "staff" });
+      resetForm();
       setShowForm(false);
       setEditingUser(null);
       fetchUsers();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -90,19 +87,11 @@ export default function Users({ currentUser }) {
 
   const startEdit = (user) => {
     setEditingUser(user);
-    setForm({
-      name: user.name,
-      email: user.email,
-      password: "",
-      phone: user.phone || "",
-      role: user.role,
-    });
     setShowForm(true);
   };
 
   const cancelEdit = () => {
     setEditingUser(null);
-    setForm({ name: "", email: "", password: "", phone: "", role: "staff" });
     setShowForm(false);
   };
 
@@ -129,6 +118,26 @@ export default function Users({ currentUser }) {
       );
     }
   }, [filteredUsers.length, loading]);
+
+  // Initial form values
+  const getInitialValues = () => {
+    if (editingUser) {
+      return {
+        name: editingUser.name,
+        email: editingUser.email,
+        password: "",
+        phone: editingUser.phone || "",
+        role: editingUser.role,
+      };
+    }
+    return {
+      name: "",
+      email: "",
+      password: "",
+      phone: "",
+      role: "staff",
+    };
+  };
 
   if (loading) return <AnimatedLoader message="Loading users..." />;
   if (error) return <div className="error">Error: {error}</div>;
@@ -203,91 +212,118 @@ export default function Users({ currentUser }) {
         {showForm &&
           (currentUser?.role === "admin" ||
             currentUser?.role === "superadmin") && (
-            <form
+            <Formik
+              initialValues={getInitialValues()}
+              validationSchema={userSchema}
+              validateOnChange={true}
+              validateOnBlur={true}
+              context={{ isEditing: !!editingUser }}
               onSubmit={handleSubmit}
-              style={{
-                marginBottom: "1.5rem",
-                padding: "1rem",
-                background: "var(--bg-tertiary)",
-                borderRadius: "8px",
-              }}
             >
-              <h3 style={{ marginBottom: "1rem" }}>
-                {editingUser ? "Edit User" : "Add New User"}
-              </h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Name *</label>
-                  <input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    required
-                  />
-                </div>
-                {!editingUser && (
-                  <>
-                    <div className="form-group">
-                      <label>Email *</label>
-                      <input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) =>
-                          setForm({ ...form, email: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Password *</label>
-                      <input
-                        type="password"
-                        value={form.password}
-                        onChange={(e) =>
-                          setForm({ ...form, password: e.target.value })
-                        }
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                  </>
-                )}
-                <div className="form-group">
-                  <label>Phone</label>
-                  <input
-                    value={form.phone}
-                    onChange={(e) =>
-                      setForm({ ...form, phone: e.target.value })
-                    }
-                    placeholder="e.g. 0722123456"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Role *</label>
-                  <select
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  >
-                    <option value="staff">Staff</option>
-                    <option value="admin">Admin</option>
-                    <option value="finance">Finance</option>
-                    <option value="driver">Driver</option>
-                    {currentUser?.role === "superadmin" && (
-                      <option value="superadmin">Super Admin</option>
+              {({ isSubmitting, values, handleChange }) => (
+                <Form
+                  style={{
+                    marginBottom: "1.5rem",
+                    padding: "1rem",
+                    background: "var(--bg-tertiary)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <h3 style={{ marginBottom: "1rem" }}>
+                    {editingUser ? "Edit User" : "Add New User"}
+                  </h3>
+                  <div className="form-row">
+                    <FormikField
+                      label="Name"
+                      name="name"
+                      placeholder="Full name"
+                      required
+                    />
+                    {!editingUser && (
+                      <>
+                        <FormikField
+                          label="Email"
+                          name="email"
+                          type="email"
+                          placeholder="email@example.com"
+                          required
+                        />
+                        <FormikField
+                          label="Password"
+                          name="password"
+                          type="password"
+                          placeholder="Minimum 6 characters"
+                          required
+                        />
+                      </>
                     )}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="submit" className="btn btn-success">
-                  {editingUser ? "Update User" : "Add User"}
-                </button>
-                {editingUser && (
-                  <button type="button" className="btn" onClick={cancelEdit}>
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </form>
+                    <FormikField
+                      label="Phone"
+                      name="phone"
+                      placeholder="e.g. 0722123456"
+                    />
+                    <div className="form-group">
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "0.35rem",
+                          fontWeight: 500,
+                          fontSize: "0.8rem",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        Role <span style={{ color: "#dc3545" }}>*</span>
+                      </label>
+                      <select
+                        name="role"
+                        value={values.role}
+                        onChange={handleChange}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem 0.75rem",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "6px",
+                          fontSize: "0.85rem",
+                          background: "var(--bg-secondary)",
+                          color: "var(--text-primary)",
+                        }}
+                        required
+                      >
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
+                        <option value="finance">Finance</option>
+                        <option value="driver">Driver</option>
+                        {currentUser?.role === "superadmin" && (
+                          <option value="superadmin">Super Admin</option>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      type="submit"
+                      className="btn btn-success"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting
+                        ? "Saving..."
+                        : editingUser
+                        ? "Update User"
+                        : "Add User"}
+                    </button>
+                    {editingUser && (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={cancelEdit}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </Form>
+              )}
+            </Formik>
           )}
 
         <table ref={tableRef}>
@@ -328,28 +364,30 @@ export default function Users({ currentUser }) {
                       user.role === "superadmin"
                         ? "admin"
                         : user.role === "admin"
-                          ? "admin"
-                          : user.role === "finance"
-                            ? "available"
-                            : user.role === "driver"
-                              ? "in-use"
-                              : "staff"
+                        ? "admin"
+                        : user.role === "finance"
+                        ? "available"
+                        : user.role === "driver"
+                        ? "in-use"
+                        : "staff"
                     }`}
                   >
                     {user.role === "superadmin"
                       ? "⭐ Super Admin"
                       : user.role === "admin"
-                        ? "👑 Admin"
-                        : user.role === "finance"
-                          ? "💰 Finance"
-                          : user.role === "driver"
-                            ? "🚗 Driver"
-                            : "👤 Staff"}
+                      ? "👑 Admin"
+                      : user.role === "finance"
+                      ? "💰 Finance"
+                      : user.role === "driver"
+                      ? "🚗 Driver"
+                      : "👤 Staff"}
                   </span>
                 </td>
                 <td>
                   <span
-                    className={`badge ${user.is_active ? "available" : "maintenance"}`}
+                    className={`badge ${
+                      user.is_active ? "available" : "maintenance"
+                    }`}
                   >
                     {user.is_active ? "Active" : "Inactive"}
                   </span>
@@ -369,10 +407,14 @@ export default function Users({ currentUser }) {
                       {user.id !== currentUser?.id && (
                         <button
                           ref={deleteButtonRef}
-                          className={`btn btn-small ${user.is_active ? "btn-danger" : "btn-success"}`}
+                          className={`btn btn-small ${
+                            user.is_active ? "btn-danger" : "btn-success"
+                          }`}
                           onClick={() => {
                             if (user.is_active) {
-                              const confirmed = window.confirm('Are you sure you want to deactivate this user?');
+                              const confirmed = window.confirm(
+                                "Are you sure you want to deactivate this user?"
+                              );
                               if (confirmed) {
                                 toggleUserStatus(user.id);
                               } else {

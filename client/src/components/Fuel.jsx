@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
+import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
 import AnimatedToast from './AnimatedToast'
+import FormikField from './FormikField'
+import { fuelSchema } from '../validations/schemas'
 
 export default function Fuel({ currentUser }) {
   const [fuelRecords, setFuelRecords] = useState([])
@@ -13,7 +16,8 @@ export default function Fuel({ currentUser }) {
   const [activeView, setActiveView] = useState('records') // records, analytics, pending
   const [filter, setFilter] = useState({ truck_id: '', from_date: '', to_date: '' })
   const [toast, setToast] = useState(null)
-  const [form, setForm] = useState({
+
+  const initialValues = {
     truck_id: '',
     driver_id: '',
     fuel_date: new Date().toISOString().split('T')[0],
@@ -26,7 +30,7 @@ export default function Fuel({ currentUser }) {
     fuel_type: 'diesel',
     payment_method: 'cash',
     notes: ''
-  })
+  }
 
   const fetchData = async () => {
     try {
@@ -62,8 +66,7 @@ export default function Fuel({ currentUser }) {
     setTimeout(() => setToast(null), 5000)
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
       const res = await fetch(`${API_BASE}/fuel`, {
         method: 'POST',
@@ -71,30 +74,19 @@ export default function Fuel({ currentUser }) {
           'Content-Type': 'application/json',
           'x-user-id': currentUser?.id
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify(values)
       })
       if (!res.ok) throw new Error('Failed to record fuel')
       
       showToast('✅ Fuel record submitted! Pending finance approval.', 'success')
       
-      setForm({
-        truck_id: '',
-        driver_id: '',
-        fuel_date: new Date().toISOString().split('T')[0],
-        quantity_liters: '',
-        cost_per_liter: '',
-        fuel_station: '',
-        station_location: '',
-        receipt_number: '',
-        odometer_reading: '',
-        fuel_type: 'diesel',
-        payment_method: 'cash',
-        notes: ''
-      })
+      resetForm()
       setShowForm(false)
       fetchData()
     } catch (err) {
       alert(err.message)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -247,151 +239,134 @@ export default function Fuel({ currentUser }) {
           </div>
 
           {showForm && (
-            <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
-              <h3 style={{ marginBottom: '1rem' }}>Record Fuel Purchase</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Truck *</label>
-                  <select 
-                    value={form.truck_id}
-                    onChange={e => setForm({...form, truck_id: e.target.value})}
-                    required
-                  >
-                    <option value="">Select Truck</option>
-                    {trucks.map(t => (
-                      <option key={t.id} value={t.id}>{t.plate_number} - {t.model}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Driver</label>
-                  <select 
-                    value={form.driver_id}
-                    onChange={e => setForm({...form, driver_id: e.target.value})}
-                  >
-                    <option value="">Select Driver</option>
-                    {drivers.map(d => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Date *</label>
-                  <input 
-                    type="date"
-                    value={form.fuel_date}
-                    onChange={e => setForm({...form, fuel_date: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Quantity (Liters) *</label>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    value={form.quantity_liters}
-                    onChange={e => setForm({...form, quantity_liters: e.target.value})}
-                    placeholder="e.g. 50"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Cost per Liter (KES) *</label>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    value={form.cost_per_liter}
-                    onChange={e => setForm({...form, cost_per_liter: e.target.value})}
-                    placeholder="e.g. 180"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Total Cost</label>
-                  <input 
-                    type="text"
-                    value={form.quantity_liters && form.cost_per_liter 
-                      ? formatCurrency(parseFloat(form.quantity_liters) * parseFloat(form.cost_per_liter))
-                      : ''
-                    }
-                    disabled
-                    style={{ background: '#e9ecef' }}
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Fuel Station</label>
-                  <input 
-                    value={form.fuel_station}
-                    onChange={e => setForm({...form, fuel_station: e.target.value})}
-                    placeholder="e.g. Shell, Total"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Station Location</label>
-                  <input 
-                    value={form.station_location}
-                    onChange={e => setForm({...form, station_location: e.target.value})}
-                    placeholder="e.g. Westlands, Nairobi"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Receipt Number</label>
-                  <input 
-                    value={form.receipt_number}
-                    onChange={e => setForm({...form, receipt_number: e.target.value})}
-                    placeholder="e.g. RCP-12345"
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Odometer Reading (km)</label>
-                  <input 
-                    type="number"
-                    value={form.odometer_reading}
-                    onChange={e => setForm({...form, odometer_reading: e.target.value})}
-                    placeholder="e.g. 45000"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Fuel Type</label>
-                  <select 
-                    value={form.fuel_type}
-                    onChange={e => setForm({...form, fuel_type: e.target.value})}
-                  >
-                    <option value="diesel">Diesel</option>
-                    <option value="petrol">Petrol</option>
-                    <option value="gas">Gas</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Payment Method</label>
-                  <select 
-                    value={form.payment_method}
-                    onChange={e => setForm({...form, payment_method: e.target.value})}
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="mpesa">M-Pesa</option>
-                    <option value="fuel_card">Fuel Card</option>
-                    <option value="credit">Credit</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Notes</label>
-                <input 
-                  value={form.notes}
-                  onChange={e => setForm({...form, notes: e.target.value})}
-                  placeholder="Additional notes..."
-                />
-              </div>
-              <button type="submit" className="btn btn-success">💾 Save Fuel Record</button>
-            </form>
+            <Formik
+              initialValues={initialValues}
+              validationSchema={fuelSchema}
+              validateOnChange={true}
+              validateOnBlur={true}
+              onSubmit={handleSubmit}
+            >
+              {({ values, isSubmitting }) => {
+                const totalCost = values.quantity_liters && values.cost_per_liter 
+                  ? formatCurrency(parseFloat(values.quantity_liters) * parseFloat(values.cost_per_liter))
+                  : ''
+                
+                return (
+                  <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                    <h3 style={{ marginBottom: '1rem' }}>Record Fuel Purchase</h3>
+                    <div className="form-row">
+                      <FormikField
+                        label="Truck"
+                        name="truck_id"
+                        type="select"
+                        required
+                      >
+                        <option value="">Select Truck</option>
+                        {trucks.map(t => (
+                          <option key={t.id} value={t.id}>{t.plate_number} - {t.model}</option>
+                        ))}
+                      </FormikField>
+                      <FormikField
+                        label="Driver"
+                        name="driver_id"
+                        type="select"
+                      >
+                        <option value="">Select Driver</option>
+                        {drivers.map(d => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </FormikField>
+                      <FormikField
+                        label="Date"
+                        name="fuel_date"
+                        type="date"
+                        required
+                      />
+                    </div>
+                    <div className="form-row">
+                      <FormikField
+                        label="Quantity (Liters)"
+                        name="quantity_liters"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 50"
+                        required
+                      />
+                      <FormikField
+                        label="Cost per Liter (KES)"
+                        name="cost_per_liter"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 180"
+                        required
+                      />
+                      <div className="form-group">
+                        <label>Total Cost</label>
+                        <input 
+                          type="text"
+                          value={totalCost}
+                          disabled
+                          style={{ background: '#e9ecef', width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <FormikField
+                        label="Fuel Station"
+                        name="fuel_station"
+                        placeholder="e.g. Shell, Total"
+                      />
+                      <FormikField
+                        label="Station Location"
+                        name="station_location"
+                        placeholder="e.g. Westlands, Nairobi"
+                      />
+                      <FormikField
+                        label="Receipt Number"
+                        name="receipt_number"
+                        placeholder="e.g. RCP-12345"
+                      />
+                    </div>
+                    <div className="form-row">
+                      <FormikField
+                        label="Odometer Reading (km)"
+                        name="odometer_reading"
+                        type="number"
+                        placeholder="e.g. 45000"
+                      />
+                      <FormikField
+                        label="Fuel Type"
+                        name="fuel_type"
+                        type="select"
+                      >
+                        <option value="diesel">Diesel</option>
+                        <option value="petrol">Petrol</option>
+                        <option value="gas">Gas</option>
+                      </FormikField>
+                      <FormikField
+                        label="Payment Method"
+                        name="payment_method"
+                        type="select"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="mpesa">M-Pesa</option>
+                        <option value="fuel_card">Fuel Card</option>
+                        <option value="credit">Credit</option>
+                      </FormikField>
+                    </div>
+                    <FormikField
+                      label="Notes"
+                      name="notes"
+                      placeholder="Additional notes..."
+                    />
+                    <button type="submit" className="btn btn-success" disabled={isSubmitting}>
+                      {isSubmitting ? 'Saving...' : '💾 Save Fuel Record'}
+                    </button>
+                  </Form>
+                )
+              }}
+            </Formik>
           )}
 
           <table>

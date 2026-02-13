@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
+import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
+import FormikField from './FormikField'
+import { equipmentSchema } from '../validations/schemas'
 
 const EQUIPMENT_CATEGORIES = [
   'Generator Model', 'Sub Woofer', 'Full Range', 'Rear Speakers', 'Monitor',
@@ -11,7 +14,8 @@ export default function Equipment({ currentUser }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState({ category: '', status: 'all' })
-  const [form, setForm] = useState({
+
+  const initialValues = {
     name: '',
     category: '',
     model: '',
@@ -20,7 +24,7 @@ export default function Equipment({ currentUser }) {
     condition: 'good',
     location: '',
     notes: ''
-  })
+  }
 
   const fetchEquipment = async () => {
     try {
@@ -47,8 +51,7 @@ export default function Equipment({ currentUser }) {
 
   useEffect(() => { fetchEquipment() }, [filter])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
       const res = await fetch(`${API_BASE}/equipment`, {
         method: 'POST',
@@ -56,25 +59,19 @@ export default function Equipment({ currentUser }) {
           'Content-Type': 'application/json',
           'x-user-id': currentUser?.id
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify(values)
       })
       
       if (!res.ok) throw new Error('Failed to add equipment')
       
-      alert('✅ Equipment added successfully!')
       resetForm()
       setShowForm(false)
       fetchEquipment()
     } catch (err) {
       alert('Error: ' + err.message)
+    } finally {
+      setSubmitting(false)
     }
-  }
-
-  const resetForm = () => {
-    setForm({
-      name: '', category: '', model: '', serial_number: '',
-      quantity: 1, condition: 'good', location: '', notes: ''
-    })
   }
 
   const getConditionBadge = (condition) => {
@@ -136,95 +133,83 @@ export default function Equipment({ currentUser }) {
 
       {/* Form */}
       {showForm && (
-        <div className="card">
-          <h3 style={{ marginBottom: '1rem' }}>Add New Equipment</h3>
-          <form onSubmit={handleSubmit}>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Equipment Name *</label>
-                <input 
-                  value={form.name}
-                  onChange={e => setForm({...form, name: e.target.value})}
+        <Formik
+          initialValues={initialValues}
+          validationSchema={equipmentSchema}
+          validateOnChange={true}
+          validateOnBlur={true}
+          onSubmit={handleSubmit}
+        >
+          {({ isSubmitting }) => (
+            <Form className="card">
+              <h3 style={{ marginBottom: '1rem' }}>Add New Equipment</h3>
+              <div className="form-row">
+                <FormikField
+                  label="Equipment Name"
+                  name="name"
                   placeholder="e.g. JBL Speaker"
                   required
                 />
-              </div>
-              <div className="form-group">
-                <label>Category *</label>
-                <select 
-                  value={form.category}
-                  onChange={e => setForm({...form, category: e.target.value})}
+                <FormikField
+                  label="Category"
+                  name="category"
+                  type="select"
                   required
                 >
                   <option value="">Select Category</option>
                   {EQUIPMENT_CATEGORIES.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Model</label>
-                <input 
-                  value={form.model}
-                  onChange={e => setForm({...form, model: e.target.value})}
+                </FormikField>
+                <FormikField
+                  label="Model"
+                  name="model"
                   placeholder="Model number"
                 />
               </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Serial Number</label>
-                <input 
-                  value={form.serial_number}
-                  onChange={e => setForm({...form, serial_number: e.target.value})}
+              <div className="form-row">
+                <FormikField
+                  label="Serial Number"
+                  name="serial_number"
                   placeholder="Serial/Asset number"
                 />
-              </div>
-              <div className="form-group">
-                <label>Quantity *</label>
-                <input 
+                <FormikField
+                  label="Quantity"
+                  name="quantity"
                   type="number"
-                  value={form.quantity}
-                  onChange={e => setForm({...form, quantity: parseInt(e.target.value) || 1})}
                   min="1"
                   required
                 />
-              </div>
-              <div className="form-group">
-                <label>Condition</label>
-                <select 
-                  value={form.condition}
-                  onChange={e => setForm({...form, condition: e.target.value})}
+                <FormikField
+                  label="Condition"
+                  name="condition"
+                  type="select"
                 >
                   <option value="excellent">Excellent</option>
                   <option value="good">Good</option>
                   <option value="fair">Fair</option>
                   <option value="poor">Poor</option>
                   <option value="damaged">Damaged</option>
-                </select>
+                </FormikField>
               </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Location</label>
-                <input 
-                  value={form.location}
-                  onChange={e => setForm({...form, location: e.target.value})}
+              <div className="form-row">
+                <FormikField
+                  label="Location"
+                  name="location"
                   placeholder="Storage location"
                 />
-              </div>
-              <div className="form-group">
-                <label>Notes</label>
-                <input 
-                  value={form.notes}
-                  onChange={e => setForm({...form, notes: e.target.value})}
+                <FormikField
+                  label="Notes"
+                  name="notes"
                   placeholder="Additional notes"
                 />
               </div>
-            </div>
-            <button type="submit" className="btn btn-success">💾 Add Equipment</button>
-          </form>
-        </div>
+              <button type="submit" className="btn btn-success" disabled={isSubmitting}>
+                {isSubmitting ? 'Adding...' : '💾 Add Equipment'}
+              </button>
+            </Form>
+          )}
+        </Formik>
       )}
 
       {/* Equipment List */}

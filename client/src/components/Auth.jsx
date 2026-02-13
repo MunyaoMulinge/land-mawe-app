@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import { Formik, Form } from 'formik'
 import { useTheme } from '../hooks/useTheme'
 import { API_BASE } from '../config'
+import FormikField from './FormikField'
+import { loginSchema, registerSchema } from '../validations/schemas'
 
 const API = API_BASE
 
 export default function Auth({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true)
-  const [form, setForm] = useState({ email: '', password: '', name: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const { theme, toggleTheme } = useTheme()
@@ -14,12 +16,11 @@ export default function Auth({ onLogin }) {
   // Disable signup - only login allowed
   const SIGNUP_DISABLED = true
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
+  const handleSubmit = async (values, { setSubmitting }) => {
     // Block signup attempts
     if (!isLogin && SIGNUP_DISABLED) {
       setError('Signup is disabled. Please contact your administrator for account creation.')
+      setSubmitting(false)
       return
     }
     
@@ -31,7 +32,7 @@ export default function Auth({ onLogin }) {
       const response = await fetch(`${API}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(values)
       })
 
       const data = await response.json()
@@ -47,7 +48,19 @@ export default function Auth({ onLogin }) {
       setError('Connection error. Please try again.')
     } finally {
       setLoading(false)
+      setSubmitting(false)
     }
+  }
+
+  const getInitialValues = () => {
+    if (isLogin) {
+      return { email: '', password: '' }
+    }
+    return { name: '', email: '', password: '' }
+  }
+
+  const getValidationSchema = () => {
+    return isLogin ? loginSchema : registerSchema
   }
 
   return (
@@ -76,51 +89,52 @@ export default function Auth({ onLogin }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          {!isLogin && (
-            <div className="form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={e => setForm({...form, name: e.target.value})}
-                required={!isLogin}
-                placeholder="Enter your full name"
+        <Formik
+          initialValues={getInitialValues()}
+          validationSchema={getValidationSchema()}
+          validateOnChange={true}
+          validateOnBlur={true}
+          onSubmit={handleSubmit}
+          enableReinitialize={true}
+        >
+          {({ isSubmitting }) => (
+            <Form>
+              {!isLogin && (
+                <FormikField
+                  label="Full Name"
+                  name="name"
+                  type="text"
+                  placeholder="Enter your full name"
+                  required
+                />
+              )}
+              
+              <FormikField
+                label="Email"
+                name="email"
+                type="email"
+                placeholder="Enter your email"
+                required
               />
-            </div>
-          )}
-          
-          <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={e => setForm({...form, email: e.target.value})}
-              required
-              placeholder="Enter your email"
-            />
-          </div>
-          
-          <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              value={form.password}
-              onChange={e => setForm({...form, password: e.target.value})}
-              required
-              placeholder="Enter your password"
-              minLength="6"
-            />
-          </div>
+              
+              <FormikField
+                label="Password"
+                name="password"
+                type="password"
+                placeholder="Enter your password"
+                required
+              />
 
-          <button 
-            type="submit" 
-            className="auth-btn" 
-            disabled={loading}
-          >
-            {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
-          </button>
-        </form>
+              <button 
+                type="submit" 
+                className="auth-btn" 
+                disabled={isSubmitting || loading}
+              >
+                {isSubmitting || loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
+              </button>
+            </Form>
+          )}
+        </Formik>
 
         <div className="auth-footer">
           {!SIGNUP_DISABLED && (

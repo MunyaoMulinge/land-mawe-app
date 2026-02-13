@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { jsPDF } from 'jspdf'
+import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
 import AnimatedModal from './AnimatedModal'
+import FormikField from './FormikField'
+import { invoiceSchema, clientSchema, paymentSchema } from '../validations/schemas'
 
 export default function Invoices({ currentUser }) {
   const [invoices, setInvoices] = useState([])
@@ -16,7 +19,7 @@ export default function Invoices({ currentUser }) {
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [filter, setFilter] = useState({ client_id: '', status: '' })
   
-  const [invoiceForm, setInvoiceForm] = useState({
+  const invoiceInitialValues = {
     client_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
     due_date: '',
@@ -24,18 +27,18 @@ export default function Invoices({ currentUser }) {
     notes: '',
     terms: 'Payment due within 30 days',
     items: [{ description: '', quantity: 1, unit_price: '' }]
-  })
+  }
   
-  const [clientForm, setClientForm] = useState({
+  const clientInitialValues = {
     name: '', contact_person: '', email: '', phone: '',
     address: '', city: '', company_type: 'company',
     tax_pin: '', payment_terms: 30, credit_limit: '', notes: ''
-  })
+  }
   
-  const [paymentForm, setPaymentForm] = useState({
+  const paymentInitialValues = {
     amount: '', payment_date: new Date().toISOString().split('T')[0],
     payment_method: 'bank_transfer', reference_number: '', notes: ''
-  })
+  }
 
   const fetchData = async () => {
     try {
@@ -81,54 +84,57 @@ export default function Invoices({ currentUser }) {
     return <span className="badge" style={{ background: s.bg, color: s.color }}>{status.toUpperCase()}</span>
   }
 
-  const handleCreateInvoice = async (e) => {
-    e.preventDefault()
+  const handleCreateInvoice = async (values, { setSubmitting, resetForm }) => {
     try {
       const res = await fetch(`${API_BASE}/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser?.id },
-        body: JSON.stringify(invoiceForm)
+        body: JSON.stringify(values)
       })
       if (!res.ok) throw new Error('Failed to create invoice')
-      resetInvoiceForm()
+      resetForm()
       setShowInvoiceForm(false)
       fetchData()
     } catch (err) {
       alert(err.message)
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const handleCreateClient = async (e) => {
-    e.preventDefault()
+  const handleCreateClient = async (values, { setSubmitting, resetForm }) => {
     try {
       const res = await fetch(`${API_BASE}/clients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser?.id },
-        body: JSON.stringify(clientForm)
+        body: JSON.stringify(values)
       })
       if (!res.ok) throw new Error('Failed to create client')
-      resetClientForm()
+      resetForm()
       setShowClientForm(false)
       fetchData()
     } catch (err) {
       alert(err.message)
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const handleRecordPayment = async (e) => {
-    e.preventDefault()
+  const handleRecordPayment = async (values, { setSubmitting, resetForm }) => {
     try {
       const res = await fetch(`${API_BASE}/invoices/${showPaymentModal.id}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser?.id },
-        body: JSON.stringify(paymentForm)
+        body: JSON.stringify(values)
       })
       if (!res.ok) throw new Error('Failed to record payment')
+      resetForm()
       setShowPaymentModal(null)
-      setPaymentForm({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_method: 'bank_transfer', reference_number: '', notes: '' })
       fetchData()
     } catch (err) {
       alert(err.message)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -145,52 +151,6 @@ export default function Invoices({ currentUser }) {
       alert(err.message)
     }
   }
-
-  const resetInvoiceForm = () => {
-    setInvoiceForm({
-      client_id: '', invoice_date: new Date().toISOString().split('T')[0],
-      due_date: '', tax_rate: 16, notes: '', terms: 'Payment due within 30 days',
-      items: [{ description: '', quantity: 1, unit_price: '' }]
-    })
-  }
-
-  const resetClientForm = () => {
-    setClientForm({
-      name: '', contact_person: '', email: '', phone: '',
-      address: '', city: '', company_type: 'company',
-      tax_pin: '', payment_terms: 30, credit_limit: '', notes: ''
-    })
-  }
-
-  const addInvoiceItem = () => {
-    setInvoiceForm({
-      ...invoiceForm,
-      items: [...invoiceForm.items, { description: '', quantity: 1, unit_price: '' }]
-    })
-  }
-
-  const removeInvoiceItem = (index) => {
-    if (invoiceForm.items.length > 1) {
-      setInvoiceForm({
-        ...invoiceForm,
-        items: invoiceForm.items.filter((_, i) => i !== index)
-      })
-    }
-  }
-
-  const updateInvoiceItem = (index, field, value) => {
-    const newItems = [...invoiceForm.items]
-    newItems[index][field] = value
-    setInvoiceForm({ ...invoiceForm, items: newItems })
-  }
-
-  const calculateSubtotal = () => {
-    return invoiceForm.items.reduce((sum, item) => 
-      sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0), 0)
-  }
-
-  const calculateTax = () => calculateSubtotal() * (parseFloat(invoiceForm.tax_rate) || 0) / 100
-  const calculateTotal = () => calculateSubtotal() + calculateTax()
 
   const viewInvoiceDetails = async (invoice) => {
     try {
@@ -329,6 +289,15 @@ export default function Invoices({ currentUser }) {
     }
   }
 
+  // Calculate totals for invoice form
+  const calculateSubtotal = (items) => {
+    return items.reduce((sum, item) => 
+      sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0), 0)
+  }
+
+  const calculateTax = (subtotal, taxRate) => subtotal * (parseFloat(taxRate) || 0) / 100
+  const calculateTotal = (subtotal, tax) => subtotal + tax
+
   if (loading) return <div className="loading">Loading invoicing data...</div>
 
   return (
@@ -394,74 +363,135 @@ export default function Invoices({ currentUser }) {
           </div>
 
           {showInvoiceForm && (
-            <form onSubmit={handleCreateInvoice} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
-              <h3 style={{ marginBottom: '1rem' }}>Create New Invoice</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Client *</label>
-                  <select value={invoiceForm.client_id} onChange={e => setInvoiceForm({...invoiceForm, client_id: e.target.value})} required>
-                    <option value="">Select Client</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Invoice Date *</label>
-                  <input type="date" value={invoiceForm.invoice_date} onChange={e => setInvoiceForm({...invoiceForm, invoice_date: e.target.value})} required />
-                </div>
-                <div className="form-group">
-                  <label>Due Date *</label>
-                  <input type="date" value={invoiceForm.due_date} onChange={e => setInvoiceForm({...invoiceForm, due_date: e.target.value})} required />
-                </div>
-                <div className="form-group">
-                  <label>Tax Rate (%)</label>
-                  <input type="number" value={invoiceForm.tax_rate} onChange={e => setInvoiceForm({...invoiceForm, tax_rate: e.target.value})} />
-                </div>
-              </div>
+            <Formik
+              initialValues={invoiceInitialValues}
+              validationSchema={invoiceSchema}
+              validateOnChange={true}
+              validateOnBlur={true}
+              onSubmit={handleCreateInvoice}
+            >
+              {({ values, setFieldValue, isSubmitting }) => {
+                const subtotal = calculateSubtotal(values.items)
+                const tax = calculateTax(subtotal, values.tax_rate)
+                const total = calculateTotal(subtotal, tax)
+                
+                return (
+                  <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                    <h3 style={{ marginBottom: '1rem' }}>Create New Invoice</h3>
+                    <div className="form-row">
+                      <FormikField
+                        label="Client"
+                        name="client_id"
+                        type="select"
+                        required
+                      >
+                        <option value="">Select Client</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </FormikField>
+                      <FormikField
+                        label="Invoice Date"
+                        name="invoice_date"
+                        type="date"
+                        required
+                      />
+                      <FormikField
+                        label="Due Date"
+                        name="due_date"
+                        type="date"
+                        required
+                      />
+                      <FormikField
+                        label="Tax Rate (%)"
+                        name="tax_rate"
+                        type="number"
+                      />
+                    </div>
 
-              <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Line Items</h4>
-              {invoiceForm.items.map((item, index) => (
-                <div key={index} className="form-row" style={{ alignItems: 'flex-end' }}>
-                  <div className="form-group" style={{ flex: 3 }}>
-                    <label>Description *</label>
-                    <input value={item.description} onChange={e => updateInvoiceItem(index, 'description', e.target.value)} placeholder="Service description" required />
-                  </div>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label>Qty</label>
-                    <input type="number" value={item.quantity} onChange={e => updateInvoiceItem(index, 'quantity', e.target.value)} min="1" />
-                  </div>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label>Unit Price</label>
-                    <input type="number" value={item.unit_price} onChange={e => updateInvoiceItem(index, 'unit_price', e.target.value)} placeholder="0.00" required />
-                  </div>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label>Amount</label>
-                    <input value={formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))} disabled />
-                  </div>
-                  <button type="button" className="btn btn-small" onClick={() => removeInvoiceItem(index)} style={{ marginBottom: '1rem' }}>🗑️</button>
-                </div>
-              ))}
-              <button type="button" className="btn btn-small" onClick={addInvoiceItem} style={{ marginBottom: '1rem' }}>+ Add Item</button>
+                    <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Line Items</h4>
+                    {values.items.map((item, index) => (
+                      <div key={index} className="form-row" style={{ alignItems: 'flex-end' }}>
+                        <div className="form-group" style={{ flex: 3 }}>
+                          <FormikField
+                            label={index === 0 ? 'Description' : ''}
+                            name={`items[${index}].description`}
+                            placeholder="Service description"
+                            required
+                          />
+                        </div>
+                        <div className="form-group" style={{ flex: 1 }}>
+                          <FormikField
+                            label={index === 0 ? 'Qty' : ''}
+                            name={`items[${index}].quantity`}
+                            type="number"
+                            min="1"
+                          />
+                        </div>
+                        <div className="form-group" style={{ flex: 1 }}>
+                          <FormikField
+                            label={index === 0 ? 'Unit Price' : ''}
+                            name={`items[${index}].unit_price`}
+                            type="number"
+                            placeholder="0.00"
+                            required
+                          />
+                        </div>
+                        <div className="form-group" style={{ flex: 1 }}>
+                          {index === 0 && <label>Amount</label>}
+                          <input 
+                            value={formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))} 
+                            disabled 
+                            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                          />
+                        </div>
+                        <button 
+                          type="button" 
+                          className="btn btn-small" 
+                          onClick={() => {
+                            const newItems = values.items.filter((_, i) => i !== index)
+                            setFieldValue('items', newItems)
+                          }} 
+                          style={{ marginBottom: '1rem' }}
+                          disabled={values.items.length <= 1}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      type="button" 
+                      className="btn btn-small" 
+                      onClick={() => setFieldValue('items', [...values.items, { description: '', quantity: 1, unit_price: '' }])} 
+                      style={{ marginBottom: '1rem' }}
+                    >
+                      + Add Item
+                    </button>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <div style={{ textAlign: 'right' }}>
-                  <div>Subtotal: <strong>{formatCurrency(calculateSubtotal())}</strong></div>
-                  <div>Tax ({invoiceForm.tax_rate}%): <strong>{formatCurrency(calculateTax())}</strong></div>
-                  <div style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>Total: <strong>{formatCurrency(calculateTotal())}</strong></div>
-                </div>
-              </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div>Subtotal: <strong>{formatCurrency(subtotal)}</strong></div>
+                        <div>Tax ({values.tax_rate}%): <strong>{formatCurrency(tax)}</strong></div>
+                        <div style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>Total: <strong>{formatCurrency(total)}</strong></div>
+                      </div>
+                    </div>
 
-              <div className="form-row" style={{ marginTop: '1rem' }}>
-                <div className="form-group">
-                  <label>Notes</label>
-                  <input value={invoiceForm.notes} onChange={e => setInvoiceForm({...invoiceForm, notes: e.target.value})} placeholder="Additional notes..." />
-                </div>
-                <div className="form-group">
-                  <label>Terms</label>
-                  <input value={invoiceForm.terms} onChange={e => setInvoiceForm({...invoiceForm, terms: e.target.value})} />
-                </div>
-              </div>
-              <button type="submit" className="btn btn-success">💾 Create Invoice</button>
-            </form>
+                    <div className="form-row" style={{ marginTop: '1rem' }}>
+                      <FormikField
+                        label="Notes"
+                        name="notes"
+                        placeholder="Additional notes..."
+                      />
+                      <FormikField
+                        label="Terms"
+                        name="terms"
+                      />
+                    </div>
+                    <button type="submit" className="btn btn-success" disabled={isSubmitting}>
+                      {isSubmitting ? 'Creating...' : '💾 Create Invoice'}
+                    </button>
+                  </Form>
+                )
+              }}
+            </Formik>
           )}
 
           <table>
@@ -497,7 +527,7 @@ export default function Invoices({ currentUser }) {
                         <button className="btn btn-small btn-primary" onClick={() => handleStatusChange(inv.id, 'sent')} title="Send">📤</button>
                       )}
                       {['sent', 'partial', 'overdue'].includes(inv.status) && (
-                        <button className="btn btn-small btn-success" onClick={() => { setShowPaymentModal(inv); setPaymentForm({...paymentForm, amount: inv.balance_due}) }} title="Record Payment">💰</button>
+                        <button className="btn btn-small btn-success" onClick={() => { setShowPaymentModal(inv); }} title="Record Payment">💰</button>
                       )}
                     </div>
                   </td>
@@ -520,56 +550,80 @@ export default function Invoices({ currentUser }) {
           </div>
 
           {showClientForm && (
-            <form onSubmit={handleCreateClient} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
-              <h3 style={{ marginBottom: '1rem' }}>Add New Client</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Company/Client Name *</label>
-                  <input value={clientForm.name} onChange={e => setClientForm({...clientForm, name: e.target.value})} required />
-                </div>
-                <div className="form-group">
-                  <label>Contact Person</label>
-                  <input value={clientForm.contact_person} onChange={e => setClientForm({...clientForm, contact_person: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Company Type</label>
-                  <select value={clientForm.company_type} onChange={e => setClientForm({...clientForm, company_type: e.target.value})}>
-                    <option value="individual">Individual</option>
-                    <option value="company">Company</option>
-                    <option value="government">Government</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Email</label>
-                  <input type="email" value={clientForm.email} onChange={e => setClientForm({...clientForm, email: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Phone</label>
-                  <input value={clientForm.phone} onChange={e => setClientForm({...clientForm, phone: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>KRA PIN</label>
-                  <input value={clientForm.tax_pin} onChange={e => setClientForm({...clientForm, tax_pin: e.target.value})} />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Address</label>
-                  <input value={clientForm.address} onChange={e => setClientForm({...clientForm, address: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>City</label>
-                  <input value={clientForm.city} onChange={e => setClientForm({...clientForm, city: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Payment Terms (days)</label>
-                  <input type="number" value={clientForm.payment_terms} onChange={e => setClientForm({...clientForm, payment_terms: e.target.value})} />
-                </div>
-              </div>
-              <button type="submit" className="btn btn-success">💾 Save Client</button>
-            </form>
+            <Formik
+              initialValues={clientInitialValues}
+              validationSchema={clientSchema}
+              validateOnChange={true}
+              validateOnBlur={true}
+              onSubmit={handleCreateClient}
+            >
+              {({ isSubmitting }) => (
+                <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <h3 style={{ marginBottom: '1rem' }}>Add New Client</h3>
+                  <div className="form-row">
+                    <FormikField
+                      label="Company/Client Name"
+                      name="name"
+                      placeholder="Client name"
+                      required
+                    />
+                    <FormikField
+                      label="Contact Person"
+                      name="contact_person"
+                      placeholder="Contact person"
+                    />
+                    <FormikField
+                      label="Company Type"
+                      name="company_type"
+                      type="select"
+                    >
+                      <option value="individual">Individual</option>
+                      <option value="company">Company</option>
+                      <option value="government">Government</option>
+                    </FormikField>
+                  </div>
+                  <div className="form-row">
+                    <FormikField
+                      label="Email"
+                      name="email"
+                      type="email"
+                      placeholder="email@example.com"
+                    />
+                    <FormikField
+                      label="Phone"
+                      name="phone"
+                      placeholder="Phone number"
+                      required
+                    />
+                    <FormikField
+                      label="KRA PIN"
+                      name="tax_pin"
+                      placeholder="Tax PIN"
+                    />
+                  </div>
+                  <div className="form-row">
+                    <FormikField
+                      label="Address"
+                      name="address"
+                      placeholder="Street address"
+                    />
+                    <FormikField
+                      label="City"
+                      name="city"
+                      placeholder="City"
+                    />
+                    <FormikField
+                      label="Payment Terms (days)"
+                      name="payment_terms"
+                      type="number"
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-success" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : '💾 Save Client'}
+                  </button>
+                </Form>
+              )}
+            </Formik>
           )}
 
           <table>
@@ -616,33 +670,52 @@ export default function Invoices({ currentUser }) {
               Invoice: <strong>{showPaymentModal.invoice_number}</strong><br />
               Balance Due: <strong style={{ color: '#dc3545' }}>{formatCurrency(showPaymentModal.balance_due)}</strong>
             </p>
-            <form onSubmit={handleRecordPayment}>
-              <div className="form-group">
-                <label>Amount *</label>
-                <input type="number" step="0.01" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label>Payment Date *</label>
-                <input type="date" value={paymentForm.payment_date} onChange={e => setPaymentForm({...paymentForm, payment_date: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label>Payment Method</label>
-                <select value={paymentForm.payment_method} onChange={e => setPaymentForm({...paymentForm, payment_method: e.target.value})}>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="mpesa">M-Pesa</option>
-                  <option value="cash">Cash</option>
-                  <option value="cheque">Cheque</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Reference Number</label>
-                <input value={paymentForm.reference_number} onChange={e => setPaymentForm({...paymentForm, reference_number: e.target.value})} placeholder="e.g. Transaction ID" />
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn" onClick={() => setShowPaymentModal(null)}>Cancel</button>
-                <button type="submit" className="btn btn-success">✅ Record Payment</button>
-              </div>
-            </form>
+            <Formik
+              initialValues={{ ...paymentInitialValues, amount: showPaymentModal.balance_due }}
+              validationSchema={paymentSchema}
+              validateOnChange={true}
+              validateOnBlur={true}
+              onSubmit={handleRecordPayment}
+            >
+              {({ isSubmitting }) => (
+                <Form>
+                  <FormikField
+                    label="Amount"
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    required
+                  />
+                  <FormikField
+                    label="Payment Date"
+                    name="payment_date"
+                    type="date"
+                    required
+                  />
+                  <FormikField
+                    label="Payment Method"
+                    name="payment_method"
+                    type="select"
+                  >
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="mpesa">M-Pesa</option>
+                    <option value="cash">Cash</option>
+                    <option value="cheque">Cheque</option>
+                  </FormikField>
+                  <FormikField
+                    label="Reference Number"
+                    name="reference_number"
+                    placeholder="e.g. Transaction ID"
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn" onClick={() => setShowPaymentModal(null)}>Cancel</button>
+                    <button type="submit" className="btn btn-success" disabled={isSubmitting}>
+                      {isSubmitting ? 'Recording...' : '✅ Record Payment'}
+                    </button>
+                  </div>
+                </Form>
+              )}
+            </Formik>
           </>
         )}
       </AnimatedModal>
