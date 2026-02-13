@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { API_BASE } from '../config'
 import { useTheme } from '../hooks/useTheme'
 import { gsap } from 'gsap'
+import AnimatedLoader from './AnimatedLoader'
 
 export default function Dashboard() {
   const { theme } = useTheme()
@@ -81,7 +82,7 @@ export default function Dashboard() {
   const totalFleet = truckStats.available + truckStats.booked + truckStats.maintenance
   const totalAlerts = (complianceAlerts.expired?.length || 0) + (complianceAlerts.expiring_soon?.length || 0) + (upcomingMaintenance.overdue?.length || 0)
 
-  if (loading) return <div className="loading">Loading dashboard...</div>
+  if (loading) return <AnimatedLoader message="Loading dashboard..." />
 
   return (
     <div>

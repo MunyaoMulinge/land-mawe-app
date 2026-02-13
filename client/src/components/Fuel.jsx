@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
+import AnimatedToast from './AnimatedToast'
 
 export default function Fuel({ currentUser }) {
   const [fuelRecords, setFuelRecords] = useState([])

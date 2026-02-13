@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { jsPDF } from 'jspdf'
 import { API_BASE } from '../config'
+import AnimatedModal from './AnimatedModal'
 
 export default function Invoices({ currentUser }) {
   const [invoices, setInvoices] = useState([])
@@ -608,11 +609,10 @@ export default function Invoices({ currentUser }) {
       )}
 
       {/* Payment Modal */}
-      {showPaymentModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '500px' }}>
-            <h3 style={{ marginBottom: '1rem' }}>💰 Record Payment</h3>
-            <p style={{ marginBottom: '1rem', color: '#666' }}>
+      <AnimatedModal isOpen={!!showPaymentModal} onClose={() => setShowPaymentModal(null)} title="💰 Record Payment">
+        {showPaymentModal && (
+          <>
+            <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
               Invoice: <strong>{showPaymentModal.invoice_number}</strong><br />
               Balance Due: <strong style={{ color: '#dc3545' }}>{formatCurrency(showPaymentModal.balance_due)}</strong>
             </p>
@@ -643,20 +643,20 @@ export default function Invoices({ currentUser }) {
                 <button type="submit" className="btn btn-success">✅ Record Payment</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </AnimatedModal>
 
       {/* Invoice Details Modal */}
-      {selectedInvoice && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '700px', maxHeight: '90vh', overflow: 'auto' }}>
+      <AnimatedModal isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)}>
+        {selectedInvoice && (
+          <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3>📄 Invoice {selectedInvoice.invoice_number}</h3>
+              <h3 style={{ color: 'var(--text-primary)' }}>📄 Invoice {selectedInvoice.invoice_number}</h3>
               {getStatusBadge(selectedInvoice.status)}
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
               <div>
                 <strong>Client:</strong><br />
                 {selectedInvoice.clients?.name}<br />
@@ -685,7 +685,7 @@ export default function Invoices({ currentUser }) {
               </tbody>
             </table>
 
-            <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
+            <div style={{ textAlign: 'right', marginBottom: '1rem', color: 'var(--text-primary)' }}>
               <div>Subtotal: {formatCurrency(selectedInvoice.subtotal)}</div>
               <div>Tax ({selectedInvoice.tax_rate}%): {formatCurrency(selectedInvoice.tax_amount)}</div>
               <div style={{ fontSize: '1.2rem' }}><strong>Total: {formatCurrency(selectedInvoice.total_amount)}</strong></div>
@@ -716,9 +716,9 @@ export default function Invoices({ currentUser }) {
               <button className="btn btn-primary" onClick={() => generatePDF(selectedInvoice)}>📥 Download PDF</button>
               <button className="btn" onClick={() => setSelectedInvoice(null)}>Close</button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </AnimatedModal>
     </div>
   )
 }

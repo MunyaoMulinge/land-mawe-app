@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 
 import { API_BASE } from '../config'
+import AnimatedModal from './AnimatedModal'
 const API = API_BASE
 
 const checklistItems = [
@@ -188,10 +189,13 @@ export default function Drivers() {
       )}
 
       {/* Create Driver Account Modal */}
-      {showLinkModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg-secondary)', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '500px', border: '1px solid var(--border-color)' }}>
-            <h3 style={{ marginBottom: '1rem' }}>🚗 Create Driver Account</h3>
+      <AnimatedModal
+        isOpen={!!showLinkModal}
+        onClose={() => setShowLinkModal(null)}
+        title="🚗 Create Driver Account"
+      >
+        {showLinkModal && (
+          <>
             <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
               Creating login account for: <strong>{showLinkModal.name}</strong>
             </p>
@@ -230,9 +234,9 @@ export default function Drivers() {
                 <button type="submit" className="btn btn-success">✅ Create Account</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </AnimatedModal>
     </div>
   )
 }

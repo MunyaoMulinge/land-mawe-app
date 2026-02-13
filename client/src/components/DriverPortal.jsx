@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
+import AnimatedToast from './AnimatedToast'
 
 export default function DriverPortal({ currentUser }) {
   const [driverInfo, setDriverInfo] = useState(null)
@@ -170,21 +171,11 @@ export default function DriverPortal({ currentUser }) {
     <div>
       {/* Toast Notification */}
       {toast && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          padding: '1rem 1.5rem',
-          background: toast.type === 'success' ? '#d4edda' : '#f8d7da',
-          color: toast.type === 'success' ? '#155724' : '#721c24',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 1000,
-          animation: 'slideIn 0.3s ease-out',
-          maxWidth: '400px'
-        }}>
-          {toast.message}
-        </div>
+        <AnimatedToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
       )}
 
       {/* Welcome Banner */}

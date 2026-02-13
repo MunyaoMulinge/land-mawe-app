@@ -175,8 +175,12 @@ body {
   transition: all 0.3s ease;
   border: 1px solid var(--border-color);
 }
+.card {
+  transition: all 0.3s ease;
+}
 .card:hover {
-  box-shadow: 0 4px 12px var(--shadow-hover);
+  box-shadow: 0 8px 24px var(--shadow-hover);
+  transform: translateY(-2px);
 }
 .card h2 { 
   margin-bottom: 0.75rem; 
@@ -203,8 +207,8 @@ body {
   transition: all 0.3s ease;
 }
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px var(--shadow-hover);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 24px var(--shadow-hover);
 }
 .stat-card .number { 
   font-size: 1.5rem; 
@@ -243,8 +247,12 @@ th {
   color: var(--text-primary); 
   white-space: nowrap; 
 }
+tr { 
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
 tr:hover { 
-  background: var(--bg-tertiary); 
+  background: var(--bg-tertiary);
+  transform: translateX(4px);
 }
 td { color: var(--text-primary); }
 
@@ -254,6 +262,10 @@ td { color: var(--text-primary); }
   border-radius: 20px;
   font-size: 0.7rem;
   font-weight: 500;
+  transition: transform 0.2s ease;
+}
+.badge:hover {
+  transform: scale(1.1);
 }
 .badge.available { background: #d4edda; color: #155724; }
 .badge.booked { background: #fff3cd; color: #856404; }
@@ -323,6 +335,15 @@ td { color: var(--text-primary); }
   font-size: 0.8rem;
   transition: all 0.3s ease;
   font-weight: 500;
+  transform: scale(1);
+}
+
+.btn:hover {
+  transform: scale(1.05);
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 .btn-primary { 
   background: var(--accent-primary); 
@@ -554,4 +575,57 @@ div[style*="position: fixed"] > div {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* Shake Animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Fade In Up Animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+/* Scale In Animation */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
 }

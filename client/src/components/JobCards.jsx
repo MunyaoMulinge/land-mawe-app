@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
+import AnimatedModal from './AnimatedModal'
 
 const EQUIPMENT_TYPES = [
   'Generator Model', 'Sub Woofer', 'Full Range', 'Rear Speakers', 'Monitor',
@@ -496,15 +497,14 @@ export default function JobCards({ currentUser }) {
       </div>
 
       {/* View Modal */}
-      {selectedJobCard && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div style={{ background: 'var(--bg-secondary)', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '800px', maxHeight: '90vh', overflow: 'auto', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3>Job Card: {selectedJobCard.job_number}</h3>
+      <AnimatedModal isOpen={!!selectedJobCard} onClose={() => setSelectedJobCard(null)} title={`Job Card: ${selectedJobCard?.job_number || ''}`}>
+        {selectedJobCard && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
               {getStatusBadge(selectedJobCard.status)}
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
               <div>
                 <strong>Client:</strong> {selectedJobCard.client_name || '-'}<br />
                 <strong>Driver:</strong> {selectedJobCard.driver_name}<br />
@@ -523,9 +523,9 @@ export default function JobCards({ currentUser }) {
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setSelectedJobCard(null)}>Close</button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </AnimatedModal>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
+import AnimatedModal from './AnimatedModal'
 
 export default function Compliance({ currentUser }) {
   const [documents, setDocuments] = useState([])
@@ -749,28 +750,10 @@ export default function Compliance({ currentUser }) {
       )}
 
       {/* Renewal Modal */}
-      {renewingDoc && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            width: '90%',
-            maxWidth: '500px'
-          }}>
-            <h3 style={{ marginBottom: '1rem' }}>🔄 Renew Document</h3>
-            <p style={{ marginBottom: '1rem', color: '#666' }}>
+      <AnimatedModal isOpen={!!renewingDoc} onClose={() => setRenewingDoc(null)} title="🔄 Renew Document">
+        {renewingDoc && (
+          <>
+            <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
               Renewing: <strong>{renewingDoc.document_type_name}</strong> for <strong>{renewingDoc.truck_plate}</strong>
             </p>
             <form onSubmit={handleRenew}>
@@ -812,9 +795,9 @@ export default function Compliance({ currentUser }) {
                 <button type="submit" className="btn btn-success">✅ Confirm Renewal</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </AnimatedModal>
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { API_BASE } from "../config";
 import { gsap } from "gsap";
+import { useButtonHover, useShake } from "../hooks/useAnimations";
+import AnimatedLoader from "./AnimatedLoader";
 
 export default function Users({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -17,6 +19,7 @@ export default function Users({ currentUser }) {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const tableRef = useRef(null);
+  const [deleteButtonRef, shakeDelete] = useShake();
 
   const fetchUsers = async () => {
     try {
@@ -127,7 +130,7 @@ export default function Users({ currentUser }) {
     }
   }, [filteredUsers.length, loading]);
 
-  if (loading) return <div className="loading">Loading users...</div>;
+  if (loading) return <AnimatedLoader message="Loading users..." />;
   if (error) return <div className="error">Error: {error}</div>;
 
   return (
@@ -365,8 +368,20 @@ export default function Users({ currentUser }) {
                       </button>
                       {user.id !== currentUser?.id && (
                         <button
+                          ref={deleteButtonRef}
                           className={`btn btn-small ${user.is_active ? "btn-danger" : "btn-success"}`}
-                          onClick={() => toggleUserStatus(user.id)}
+                          onClick={() => {
+                            if (user.is_active) {
+                              const confirmed = window.confirm('Are you sure you want to deactivate this user?');
+                              if (confirmed) {
+                                toggleUserStatus(user.id);
+                              } else {
+                                shakeDelete();
+                              }
+                            } else {
+                              toggleUserStatus(user.id);
+                            }
+                          }}
                           title={
                             user.is_active ? "Deactivate user" : "Activate user"
                           }
