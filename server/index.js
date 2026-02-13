@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 import pool from './db.js';
 import { supabase, supabaseAdmin } from './supabase-client.js';
 
@@ -117,12 +118,15 @@ app.post('/api/auth/register', async (req, res) => {
     // Determine role: first user = admin, otherwise use provided role or default to staff
     const userRole = isFirstUser ? 'admin' : (role || 'staff');
     
+    // Hash password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
     // Insert new user
     const { data: newUser, error } = await supabase
       .from('users')
       .insert([{ 
         email, 
-        password, 
+        password: hashedPassword, 
         name, 
         phone,
         role: userRole
@@ -148,16 +152,25 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
+    // Get user with password for comparison
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, role, phone, is_active, created_at')
+      .select('id, email, name, role, phone, is_active, created_at, password')
       .eq('email', email)
-      .eq('password', password)
       .single();
     
     if (error || !user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+    
+    // Compare password with hash
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    // Remove password from response
+    delete user.password;
     
     if (!user.is_active) {
       return res.status(403).json({ error: 'Account is deactivated. Contact admin.' });
@@ -530,11 +543,14 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
+    // Hash password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
     const { data: newUser, error } = await supabase
       .from('users')
       .insert([{ 
         email, 
-        password, 
+        password: hashedPassword, 
         name, 
         phone,
         role: role || 'staff'
