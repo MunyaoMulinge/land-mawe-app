@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
-import { usePermissions, Can } from '../hooks/usePermissions.jsx'
+import { usePermissions } from '../hooks/usePermissions'
 const API = API_BASE
 
 export default function Trucks() {

@@ -6,6 +6,7 @@ import AnimatedLoader from './AnimatedLoader'
 import FormikField from './FormikField'
 import AnimatedModal from './AnimatedModal'
 import { gsap } from 'gsap'
+import { usePermissions } from '../hooks/usePermissions'
 
 // Validation schema
 const trailerSchema = Yup.object({
@@ -49,6 +50,7 @@ export default function Trailers({ currentUser }) {
   const [maintenanceRecords, setMaintenanceRecords] = useState([])
   const [filter, setFilter] = useState({ status: '', type: '' })
   const tableRef = useRef(null)
+  const { hasPermission } = usePermissions()
 
   const fetchData = async () => {
     try {
@@ -255,13 +257,15 @@ export default function Trailers({ currentUser }) {
               <option value="lowboy">Lowboy</option>
               <option value="car_carrier">Car Carrier</option>
             </select>
-            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-              {showForm ? 'Cancel' : '+ Add Trailer'}
-            </button>
+            {hasPermission('trailers', 'create') && (
+              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+                {showForm ? 'Cancel' : '+ Add Trailer'}
+              </button>
+            )}
           </div>
         </div>
 
-        {showForm && (
+        {showForm && hasPermission('trailers', 'create') && (
           <Formik
             initialValues={initialValues}
             validationSchema={trailerSchema}

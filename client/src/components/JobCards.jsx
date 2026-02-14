@@ -4,6 +4,7 @@ import { API_BASE } from '../config'
 import AnimatedModal from './AnimatedModal'
 import FormikField from './FormikField'
 import { jobCardSchema } from '../validations/schemas'
+import { usePermissions } from '../hooks/usePermissions'
 
 const EQUIPMENT_TYPES = [
   'Generator Model', 'Sub Woofer', 'Full Range', 'Rear Speakers', 'Monitor',
@@ -18,6 +19,7 @@ export default function JobCards({ currentUser }) {
   const [showForm, setShowForm] = useState(false)
   const [selectedJobCard, setSelectedJobCard] = useState(null)
   const [filter, setFilter] = useState({ status: '' })
+  const { hasPermission } = usePermissions()
   
   const initialValues = {
     // Basic Info
@@ -153,15 +155,17 @@ export default function JobCards({ currentUser }) {
               <option value="departed">Departed</option>
               <option value="completed">Completed</option>
             </select>
-            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-              {showForm ? 'Cancel' : '+ New Job Card'}
-            </button>
+            {hasPermission('jobcards', 'create') && (
+              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+                {showForm ? 'Cancel' : '+ New Job Card'}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Form */}
-      {showForm && (
+      {showForm && hasPermission('jobcards', 'create') && (
         <Formik
           initialValues={initialValues}
           validationSchema={jobCardSchema}

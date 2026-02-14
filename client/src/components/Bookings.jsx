@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-
 import { API_BASE } from '../config'
+import { usePermissions } from '../hooks/usePermissions'
 const API = API_BASE
 
 export default function Bookings() {
@@ -10,6 +10,7 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ truck_id: '', driver_id: '', event_name: '', location: '', start_date: '', end_date: '' })
+  const { hasPermission } = usePermissions()
 
   const fetchData = () => {
     Promise.all([
@@ -46,12 +47,14 @@ export default function Bookings() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h2>Roadshow Bookings</h2>
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? 'Cancel' : '+ New Booking'}
-          </button>
+          {hasPermission('bookings', 'create') && (
+            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+              {showForm ? 'Cancel' : '+ New Booking'}
+            </button>
+          )}
         </div>
 
-        {showForm && (
+        {showForm && hasPermission('bookings', 'create') && (
           <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
             <div className="form-row">
               <div className="form-group">

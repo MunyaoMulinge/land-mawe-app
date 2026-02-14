@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
 import AnimatedModal from './AnimatedModal'
+import { usePermissions } from '../hooks/usePermissions'
 
 export default function Compliance({ currentUser }) {
   const [documents, setDocuments] = useState([])
@@ -14,6 +15,7 @@ export default function Compliance({ currentUser }) {
   const [filter, setFilter] = useState({ truck_id: '', category: '', status: '' })
   const [renewingDoc, setRenewingDoc] = useState(null)
   const [uploadingFile, setUploadingFile] = useState(false)
+  const { hasPermission } = usePermissions()
   const [form, setForm] = useState({
     truck_id: '',
     document_type_id: '',
@@ -389,13 +391,15 @@ export default function Compliance({ currentUser }) {
                 <option value="license">License</option>
                 <option value="inspection">Inspection</option>
               </select>
-              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                {showForm ? 'Cancel' : '+ Add Document'}
-              </button>
+              {hasPermission('compliance', 'create') && (
+                <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+                  {showForm ? 'Cancel' : '+ Add Document'}
+                </button>
+              )}
             </div>
           </div>
 
-          {showForm && (
+          {showForm && hasPermission('compliance', 'create') && (
             <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
               <h3 style={{ marginBottom: '1rem' }}>Add New Document</h3>
               

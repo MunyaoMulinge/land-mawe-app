@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
+import { usePermissions } from '../hooks/usePermissions'
 
 export default function Maintenance({ currentUser }) {
   const [records, setRecords] = useState([])
@@ -13,6 +14,7 @@ export default function Maintenance({ currentUser }) {
   const [activeView, setActiveView] = useState('records')
   const [filter, setFilter] = useState({ truck_id: '', status: '' })
   const [selectedRecord, setSelectedRecord] = useState(null)
+  const { hasPermission } = usePermissions()
   const [form, setForm] = useState({
     truck_id: '',
     service_type_id: '',
@@ -265,13 +267,15 @@ export default function Maintenance({ currentUser }) {
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
               </select>
-              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                {showForm ? 'Cancel' : '+ Schedule Maintenance'}
-              </button>
+              {hasPermission('maintenance', 'create') && (
+                <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+                  {showForm ? 'Cancel' : '+ Schedule Maintenance'}
+                </button>
+              )}
             </div>
           </div>
 
-          {showForm && (
+          {showForm && hasPermission('maintenance', 'create') && (
             <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
               <h3 style={{ marginBottom: '1rem' }}>Schedule Maintenance</h3>
               <div className="form-row">

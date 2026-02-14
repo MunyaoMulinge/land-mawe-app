@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
+import { usePermissions } from '../hooks/usePermissions'
 import FormikField from './FormikField'
 import { equipmentSchema } from '../validations/schemas'
 
@@ -10,6 +11,7 @@ const EQUIPMENT_CATEGORIES = [
 ]
 
 export default function Equipment({ currentUser }) {
+  const { hasPermission } = usePermissions()
   const [equipment, setEquipment] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -124,9 +126,11 @@ export default function Equipment({ currentUser }) {
               <option value="available">Available</option>
               <option value="in_use">In Use</option>
             </select>
-            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-              {showForm ? 'Cancel' : '+ Add Equipment'}
-            </button>
+            {hasPermission('equipment', 'create') && (
+              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+                {showForm ? 'Cancel' : '+ Add Equipment'}
+              </button>
+            )}
           </div>
         </div>
       </div>
