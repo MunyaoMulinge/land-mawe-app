@@ -819,6 +819,105 @@ app.patch('/api/users/:id/toggle-active', async (req, res) => {
   }
 });
 
+// Reset user password (superadmin only) - sends password reset email
+app.post('/api/users/:id/reset-password', async (req, res) => {
+  const adminId = req.headers['x-user-id'];
+  
+  try {
+    // Check if requester is superadmin
+    const { data: admin, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', adminId)
+      .single();
+    
+    if (adminError || admin.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only Super Admins can reset passwords' });
+    }
+    
+    // Get user details
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email, name')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (userError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Send password reset email via Supabase
+    const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: user.email,
+      options: {
+        redirectTo: `${process.env.SITE_URL || 'http://localhost:5173'}/reset-password`
+      }
+    });
+    
+    if (resetError) {
+      console.error('Supabase password reset error:', resetError);
+      return res.status(400).json({ error: resetError.message });
+    }
+    
+    // Log activity
+    await logActivity(adminId, 'PASSWORD_RESET_SENT', 'user', user.id, { email: user.email });
+    
+    res.json({ 
+      success: true, 
+      message: `Password reset email sent to ${user.email}. They will receive instructions to set a new password.` 
+    });
+  } catch (err) {
+    console.error('Error resetting password:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Confirm password reset (user clicks link from email)
+app.post('/api/auth/reset-password-confirm', async (req, res) => {
+  const { email, password, access_token } = req.body;
+  
+  if (!email || !password || !access_token) {
+    return res.status(400).json({ error: 'Email, password, and access token are required' });
+  }
+  
+  try {
+    // Verify the access token and get user
+    const { data: userData, error: userError } = await supabase.auth.getUser(access_token);
+    
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid or expired reset token' });
+    }
+    
+    // Check email matches
+    if (userData.user.email !== email) {
+      return res.status(400).json({ error: 'Email does not match reset token' });
+    }
+    
+    // Update password in Supabase Auth
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      userData.user.id,
+      { password }
+    );
+    
+    if (updateError) {
+      throw updateError;
+    }
+    
+    // Update local database
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await supabase
+      .from('users')
+      .update({ password: hashedPassword })
+      .eq('email', email);
+    
+    res.json({ success: true, message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('Password reset confirm error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ ACTIVITY LOGS ENDPOINTS ============
 
 // Get activity logs (admin only)

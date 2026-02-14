@@ -95,6 +95,33 @@ export default function Users({ currentUser }) {
     }
   };
 
+  const resetUserPassword = async (user) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to reset the password for ${user.name || user.email}?\n\nThey will receive an email to set a new password.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/users/${user.id}/reset-password`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-id": currentUser?.id 
+        },
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to reset password");
+      }
+      
+      const result = await res.json();
+      alert(result.message || "Password reset email sent successfully!");
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const startEdit = (user) => {
     setEditingUser(user);
     setShowForm(true);
@@ -401,7 +428,7 @@ export default function Users({ currentUser }) {
                   </span>
                 </td>
                 <td>{new Date(user.created_at).toLocaleDateString()}</td>
-                {(hasPermission('users', 'edit') || hasPermission('users', 'delete')) && (
+                {(hasPermission('users', 'edit') || hasPermission('users', 'delete') || isSuperAdmin) && (
                   <td>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                       {hasPermission('users', 'edit') && (
@@ -411,6 +438,17 @@ export default function Users({ currentUser }) {
                           title="Edit user"
                         >
                           ✏️
+                        </button>
+                      )}
+                      {/* Only SuperAdmin can reset passwords */}
+                      {isSuperAdmin && user.id !== currentUser?.id && (
+                        <button
+                          className="btn btn-small btn-warning"
+                          onClick={() => resetUserPassword(user)}
+                          title="Reset password - sends email to user"
+                          style={{ background: '#ff9800', color: 'white' }}
+                        >
+                          🔑
                         </button>
                       )}
                       {hasPermission('users', 'delete') && user.id !== currentUser?.id && (

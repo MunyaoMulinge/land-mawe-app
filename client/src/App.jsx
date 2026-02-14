@@ -21,6 +21,7 @@ import ActivityLogs from './components/ActivityLogs'
 import PermissionManager from './components/PermissionManager'
 import DriverPortal from './components/DriverPortal'
 import SetPassword from './components/SetPassword'
+import ResetPassword from './components/ResetPassword'
 import './App.css'
 
 // Define tabs based on user role
@@ -305,6 +306,7 @@ function App() {
         <Routes>
           {/* Public routes (no auth required) */}
           <Route path="/set-password" element={<SetPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Auth route */}
           <Route 
