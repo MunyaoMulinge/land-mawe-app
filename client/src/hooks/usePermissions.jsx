@@ -52,6 +52,9 @@ export function PermissionsProvider({ children, currentUser }) {
   };
 
   const hasPermission = useCallback((module, action) => {
+    // Superadmin has all permissions
+    if (currentUser?.role === 'superadmin') return true;
+    
     const permissionKey = `${module}:${action}`;
     
     // Check exact permission
@@ -60,15 +63,19 @@ export function PermissionsProvider({ children, currentUser }) {
     // Check aliases (e.g., fuel:create -> fuel:record)
     const aliases = permissionAliases[permissionKey] || [];
     return aliases.some(alias => permissions.includes(alias));
-  }, [permissions]);
+  }, [permissions, currentUser]);
 
   const hasAnyPermission = useCallback((perms) => {
+    // Superadmin has all permissions
+    if (currentUser?.role === 'superadmin') return true;
     return perms.some(({ module, action }) => permissions.includes(`${module}:${action}`));
-  }, [permissions]);
+  }, [permissions, currentUser]);
 
   const hasAllPermissions = useCallback((perms) => {
+    // Superadmin has all permissions
+    if (currentUser?.role === 'superadmin') return true;
     return perms.every(({ module, action }) => permissions.includes(`${module}:${action}`));
-  }, [permissions]);
+  }, [permissions, currentUser]);
 
   const value = {
     permissions,
