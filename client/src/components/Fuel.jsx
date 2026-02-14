@@ -177,6 +177,7 @@ function LiveLocationCapture({ onLocationCaptured }) {
 }
 
 export default function Fuel({ currentUser }) {
+  const { hasPermission } = usePermissions()
   const [fuelRecords, setFuelRecords] = useState([])
   const [trucks, setTrucks] = useState([])
   const [drivers, setDrivers] = useState([])
