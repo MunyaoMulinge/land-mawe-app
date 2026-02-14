@@ -25,15 +25,15 @@ import './App.css'
 // Define tabs based on user role
 const baseTabs = [
   { id: 'dashboard', label: '📊 Dashboard', path: '/', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
-  { id: 'bookings', label: '📅 Bookings', path: '/bookings', roles: ['superadmin', 'admin', 'staff', 'driver'] },
+  { id: 'bookings', label: '📅 Bookings', path: '/bookings', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'trucks', label: '🚛 Trucks', path: '/trucks', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
-  { id: 'trailers', label: '🚚 Trailers', path: '/trailers', roles: ['superadmin', 'admin', 'staff', 'driver'] },
-  { id: 'drivers', label: '👤 Drivers', path: '/drivers', roles: ['superadmin', 'admin', 'staff', 'driver'] },
-  { id: 'equipment', label: '📦 Equipment', path: '/equipment', roles: ['superadmin', 'admin', 'staff', 'driver'] },
+  { id: 'trailers', label: '🚚 Trailers', path: '/trailers', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
+  { id: 'drivers', label: '👤 Drivers', path: '/drivers', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
+  { id: 'equipment', label: '📦 Equipment', path: '/equipment', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'jobcards', label: '📋 Job Cards', path: '/jobcards', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'fuel', label: '⛽ Fuel', path: '/fuel', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
-  { id: 'maintenance', label: '🔧 Maintenance', path: '/maintenance', roles: ['superadmin', 'admin', 'staff', 'driver'] },
-  { id: 'compliance', label: '🛡️ Compliance', path: '/compliance', roles: ['superadmin', 'admin', 'staff', 'driver'] },
+  { id: 'maintenance', label: '🔧 Maintenance', path: '/maintenance', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
+  { id: 'compliance', label: '🛡️ Compliance', path: '/compliance', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'invoices', label: '💰 Invoices', path: '/invoices', roles: ['superadmin', 'finance'] },
   { id: 'users', label: '👥 Users', path: '/users', roles: ['superadmin', 'admin'] },
   { id: 'activity', label: '📋 Activity', path: '/activity', roles: ['superadmin', 'admin', 'finance'] },
@@ -310,7 +310,7 @@ function App() {
           <Route 
             path="/bookings" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff', 'driver']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Bookings />
               </ProtectedRoute>
             } 
@@ -326,7 +326,7 @@ function App() {
           <Route 
             path="/trailers" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff', 'driver']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Trailers currentUser={user} />
               </ProtectedRoute>
             } 
@@ -334,7 +334,7 @@ function App() {
           <Route 
             path="/drivers" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff', 'driver']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Drivers />
               </ProtectedRoute>
             } 
@@ -342,7 +342,7 @@ function App() {
           <Route 
             path="/equipment" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff', 'driver']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Equipment currentUser={user} />
               </ProtectedRoute>
             } 
@@ -366,7 +366,7 @@ function App() {
           <Route 
             path="/maintenance" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff', 'driver']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Maintenance currentUser={user} />
               </ProtectedRoute>
             } 
@@ -374,7 +374,7 @@ function App() {
           <Route 
             path="/compliance" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff', 'driver']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Compliance currentUser={user} />
               </ProtectedRoute>
             } 
