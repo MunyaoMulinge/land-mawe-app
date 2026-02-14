@@ -360,7 +360,7 @@ export default function Fuel({ currentUser }) {
           >
             📋 Fuel Records
           </button>
-          {(currentUser?.role === 'finance' || currentUser?.role === 'superadmin') && (
+          {hasPermission('fuel', 'approve') && (
             <button 
               className={`btn ${activeView === 'pending' ? 'btn-primary' : ''}`}
               onClick={() => setActiveView('pending')}
@@ -681,8 +681,8 @@ export default function Fuel({ currentUser }) {
         </div>
       )}
 
-      {/* Pending Approval View (Finance Only) */}
-      {activeView === 'pending' && (currentUser?.role === 'finance' || currentUser?.role === 'superadmin') && (
+      {/* Pending Approval View (Requires fuel:approve permission) */}
+      {activeView === 'pending' && hasPermission('fuel', 'approve') && (
         <div className="card">
           <h2 style={{ marginBottom: '1rem' }}>⏳ Pending Fuel Approvals</h2>
           <table>
