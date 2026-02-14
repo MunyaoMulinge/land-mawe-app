@@ -185,6 +185,63 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
   }
 });
 
+// Set password (for invited users)
+app.post('/api/auth/set-password', async (req, res) => {
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+  
+  try {
+    // Find the user by email
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('email', email)
+      .single();
+    
+    if (userError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Find the user in Supabase Auth by email
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (authError) {
+      throw authError;
+    }
+    
+    const matchingUser = authUser.users.find(u => u.email === email);
+    
+    if (!matchingUser) {
+      return res.status(404).json({ error: 'User not found in auth system' });
+    }
+    
+    // Update the password in Supabase Auth
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      matchingUser.id,
+      { password }
+    );
+    
+    if (updateError) {
+      throw updateError;
+    }
+    
+    // Also update the local database password for compatibility
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await supabase
+      .from('users')
+      .update({ password: hashedPassword })
+      .eq('email', email);
+    
+    res.json({ success: true, message: 'Password set successfully' });
+  } catch (err) {
+    console.error('Set password error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get current user permissions
 app.get('/api/auth/permissions', async (req, res) => {
   const userId = req.headers['x-user-id'];
@@ -628,13 +685,13 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
-// Create new user (admin only)
+// Create new user (admin only) - sends invitation email
 app.post('/api/users', async (req, res) => {
-  const { email, password, name, phone, role } = req.body;
+  const { email, name, phone, role } = req.body;
   const adminId = req.headers['x-user-id'];
   
   try {
-    // Check if email already exists
+    // Check if email already exists in local database
     const { data: existing } = await supabase
       .from('users')
       .select('id')
@@ -645,17 +702,36 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
-    // Hash password before storing
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Send invitation via Supabase Auth
+    // This sends an email to the user with a link to set their password
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      options: {
+        data: {
+          name: name,
+          role: role || 'staff'
+        }
+      }
+    });
     
+    if (authError) {
+      console.error('Supabase Auth invitation error:', authError);
+      return res.status(400).json({ error: authError.message });
+    }
+    
+    // Generate a random password for local database (user will change it via invitation)
+    const tempPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    
+    // Insert new user into local database (id is auto-generated as integer)
     const { data: newUser, error } = await supabase
       .from('users')
       .insert([{ 
         email, 
-        password: hashedPassword, 
+        password: hashedPassword, // Temporary password
         name, 
         phone,
-        role: role || 'staff'
+        role: role || 'staff',
+        is_active: true
       }])
       .select('id, email, name, role, phone, is_active, created_at')
       .single();
@@ -663,9 +739,12 @@ app.post('/api/users', async (req, res) => {
     if (error) throw error;
     
     // Log activity
-    await logActivity(adminId, 'USER_CREATED', 'user', newUser.id, { email, role: newUser.role });
+    await logActivity(adminId, 'USER_INVITED', 'user', newUser.id, { email, role: newUser.role });
     
-    res.json(newUser);
+    res.json({
+      ...newUser,
+      message: 'Invitation sent successfully. User will receive an email to set their password.'
+    });
   } catch (err) {
     console.error('Error creating user:', err);
     res.status(500).json({ error: err.message });

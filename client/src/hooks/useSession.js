@@ -28,7 +28,6 @@ export function useSession(onSessionExpired, onShowWarning) {
 
     const sessionAge = Date.now() - parseInt(sessionStart);
     if (sessionAge > TOKEN_LIFETIME) {
-      console.log('Token expired, logging out...');
       clearSession();
       return true;
     }
@@ -50,14 +49,12 @@ export function useSession(onSessionExpired, onShowWarning) {
 
     // Set warning timer
     warningTimerRef.current = setTimeout(() => {
-      console.log('Showing idle warning...');
       setShowWarning(true);
       if (onShowWarning) onShowWarning();
     }, IDLE_TIMEOUT - WARNING_BEFORE);
 
     // Set logout timer
     idleTimerRef.current = setTimeout(() => {
-      console.log('Idle timeout reached, logging out...');
       setShowWarning(false);
       clearSession();
     }, IDLE_TIMEOUT);

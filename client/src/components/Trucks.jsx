@@ -12,15 +12,12 @@ export default function Trucks() {
   const { hasPermission } = usePermissions()
 
   const fetchTrucks = () => {
-    console.log('Fetching trucks from:', `${API}/trucks`);
     fetch(`${API}/trucks`)
       .then(r => {
-        console.log('Trucks response status:', r.status);
         if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
         return r.json();
       })
       .then(data => { 
-        console.log('Trucks data:', data);
         setTrucks(data); 
         setLoading(false);
       })

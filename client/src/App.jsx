@@ -20,11 +20,12 @@ import Users from './components/Users'
 import ActivityLogs from './components/ActivityLogs'
 import PermissionManager from './components/PermissionManager'
 import DriverPortal from './components/DriverPortal'
+import SetPassword from './components/SetPassword'
 import './App.css'
 
 // Define tabs based on user role
 const baseTabs = [
-  { id: 'dashboard', label: '📊 Dashboard', path: '/', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
+  { id: 'dashboard', label: '📊 Dashboard', path: '/dashboard', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'bookings', label: '📅 Bookings', path: '/bookings', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'trucks', label: '🚛 Trucks', path: '/trucks', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'trailers', label: '🚚 Trailers', path: '/trailers', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
@@ -86,6 +87,11 @@ function Layout({ user, onLogout }) {
   const [showWarning, setShowWarning] = useState(false)
   const { hasPermission, permissions } = usePermissions()
   
+  // If no user, don't render layout (will redirect)
+  if (!user) {
+    return <Navigate to="/" replace />
+  }
+  
   // Initialize session management
   const { showWarning: sessionWarning } = useSession(onLogout, () => setShowWarning(true))
   
@@ -99,7 +105,8 @@ function Layout({ user, onLogout }) {
     }
     // Check if user has view permission for this module
     const moduleName = tab.id === 'activity' ? 'activity_logs' : 
-                       tab.id === 'jobcards' ? 'job_cards' : tab.id
+                       tab.id === 'jobcards' ? 'job_cards' : 
+                       tab.id === 'dashboard' ? 'dashboard' : tab.id
     return hasPermission(moduleName, 'view')
   })
 
@@ -291,21 +298,27 @@ function App() {
     return <div className="loading">Loading...</div>
   }
 
-  // Not logged in - show auth
-  if (!user) {
-    return <Auth onLogin={handleLogin} />
-  }
-
-  // All authenticated users (including drivers) get the full interface
-  // Access is controlled by granular permissions, not just role
+  // All routes - some require auth, some don't
   return (
     <PermissionsProvider currentUser={user}>
       <BrowserRouter>
         <Routes>
+          {/* Public routes (no auth required) */}
+          <Route path="/set-password" element={<SetPassword />} />
+          
+          {/* Auth route */}
+          <Route 
+            path="/" 
+            element={
+              user ? <Navigate to="/dashboard" replace /> : <Auth onLogin={handleLogin} />
+            } 
+          />
+          
+          {/* Protected routes (require auth) */}
           <Route element={<Layout user={user} onLogout={handleLogout} />}>
           {/* Dashboard - controlled by permissions */}
           <Route 
-            path="/" 
+            path="/dashboard" 
             element={
               <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Dashboard />
@@ -424,7 +437,7 @@ function App() {
           />
           
           {/* Catch all - redirect to dashboard */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

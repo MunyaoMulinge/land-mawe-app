@@ -8,13 +8,10 @@ export const userSchema = Yup.object({
   email: Yup.string()
     .email('Invalid email address')
     .required('Email is required'),
+  // Password is no longer required - users set it via invitation email
   password: Yup.string()
     .min(6, 'Password must be at least 6 characters')
-    .when('$isEditing', {
-      is: false,
-      then: (schema) => schema.required('Password is required'),
-      otherwise: (schema) => schema.notRequired()
-    }),
+    .notRequired(),
   phone: Yup.string()
     .matches(/^[0-9\-\+\s]+$/, 'Invalid phone number')
     .nullable(),

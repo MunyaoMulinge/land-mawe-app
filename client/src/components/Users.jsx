@@ -45,9 +45,10 @@ export default function Users({ currentUser }) {
         : `${API_BASE}/users`;
 
       const method = editingUser ? "PATCH" : "POST";
+      // When creating, don't send password - user sets it via invitation
       const body = editingUser
         ? { name: values.name, phone: values.phone, role: values.role }
-        : values;
+        : { name: values.name, email: values.email, phone: values.phone, role: values.role };
 
       const res = await fetch(url, {
         method,
@@ -62,11 +63,18 @@ export default function Users({ currentUser }) {
         const err = await res.json();
         throw new Error(err.error || "Failed to save user");
       }
+      
+      const result = await res.json();
 
       resetForm();
       setShowForm(false);
       setEditingUser(null);
       fetchUsers();
+      
+      // Show success message with invitation info
+      if (!editingUser && result.message) {
+        alert(result.message);
+      }
     } catch (err) {
       alert(err.message);
     } finally {
@@ -127,7 +135,6 @@ export default function Users({ currentUser }) {
       return {
         name: editingUser.name,
         email: editingUser.email,
-        password: "",
         phone: editingUser.phone || "",
         role: editingUser.role,
       };
@@ -135,7 +142,6 @@ export default function Users({ currentUser }) {
     return {
       name: "",
       email: "",
-      password: "",
       phone: "",
       role: "staff",
     };
@@ -247,13 +253,17 @@ export default function Users({ currentUser }) {
                           placeholder="email@example.com"
                           required
                         />
-                        <FormikField
-                          label="Password"
-                          name="password"
-                          type="password"
-                          placeholder="Minimum 6 characters"
-                          required
-                        />
+                        <div style={{ 
+                          padding: '0.75rem', 
+                          background: '#e3f2fd', 
+                          borderRadius: '4px',
+                          marginBottom: '1rem',
+                          fontSize: '0.9rem',
+                          color: '#1976d2',
+                          gridColumn: '1 / -1'
+                        }}>
+                          📧 An invitation email will be sent to the user to set their password.
+                        </div>
                       </>
                     )}
                     <FormikField
