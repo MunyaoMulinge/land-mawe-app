@@ -34,9 +34,9 @@ const baseTabs = [
   { id: 'fuel', label: '⛽ Fuel', path: '/fuel', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'maintenance', label: '🔧 Maintenance', path: '/maintenance', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'compliance', label: '🛡️ Compliance', path: '/compliance', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
-  { id: 'invoices', label: '💰 Invoices', path: '/invoices', roles: ['superadmin', 'finance'] },
-  { id: 'users', label: '👥 Users', path: '/users', roles: ['superadmin', 'admin'] },
-  { id: 'activity', label: '📋 Activity', path: '/activity', roles: ['superadmin', 'admin', 'finance'] },
+  { id: 'invoices', label: '💰 Invoices', path: '/invoices', roles: ['superadmin', 'admin', 'finance', 'staff'] },
+  { id: 'users', label: '👥 Users', path: '/users', roles: ['superadmin', 'admin', 'staff'] },
+  { id: 'activity', label: '📋 Activity', path: '/activity', roles: ['superadmin', 'admin', 'finance', 'staff'] },
   { id: 'permissions', label: '🔐 Permissions', path: '/permissions', roles: ['superadmin'] }
 ]
 
@@ -380,21 +380,21 @@ function App() {
             } 
           />
           
-          {/* Finance-only routes */}
+          {/* Finance routes */}
           <Route 
             path="/invoices" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'finance']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff']}>
                 <Invoices currentUser={user} />
               </ProtectedRoute>
             } 
           />
           
-          {/* Admin/Superadmin only routes */}
+          {/* Admin routes */}
           <Route 
             path="/users" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff']}>
                 <Users currentUser={user} />
               </ProtectedRoute>
             } 
@@ -402,7 +402,7 @@ function App() {
           <Route 
             path="/activity" 
             element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance']}>
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff']}>
                 <ActivityLogs currentUser={user} />
               </ProtectedRoute>
             } 
