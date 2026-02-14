@@ -155,7 +155,7 @@ export default function JobCards({ currentUser }) {
               <option value="departed">Departed</option>
               <option value="completed">Completed</option>
             </select>
-            {hasPermission('jobcards', 'create') && (
+            {hasPermission('job_cards', 'create') && (
               <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
                 {showForm ? 'Cancel' : '+ New Job Card'}
               </button>
@@ -165,7 +165,7 @@ export default function JobCards({ currentUser }) {
       </div>
 
       {/* Form */}
-      {showForm && hasPermission('jobcards', 'create') && (
+      {showForm && hasPermission('job_cards', 'create') && (
         <Formik
           initialValues={initialValues}
           validationSchema={jobCardSchema}
