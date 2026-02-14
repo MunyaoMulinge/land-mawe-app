@@ -45,10 +45,10 @@ export default function Users({ currentUser }) {
         : `${API_BASE}/users`;
 
       const method = editingUser ? "PATCH" : "POST";
-      // When creating, don't send password - user sets it via invitation
+      // When creating, include password set by admin
       const body = editingUser
         ? { name: values.name, phone: values.phone, role: values.role }
-        : { name: values.name, email: values.email, phone: values.phone, role: values.role };
+        : { name: values.name, email: values.email, password: values.password, phone: values.phone, role: values.role };
 
       const res = await fetch(url, {
         method,
@@ -96,8 +96,20 @@ export default function Users({ currentUser }) {
   };
 
   const resetUserPassword = async (user) => {
+    // Prompt for new password
+    const newPassword = window.prompt(
+      `Reset password for ${user.name || user.email}\n\nEnter new password (min 6 characters):`
+    );
+    
+    if (!newPassword) return; // User cancelled
+    
+    if (newPassword.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+    
     const confirmed = window.confirm(
-      `Are you sure you want to reset the password for ${user.name || user.email}?\n\nThey will receive an email to set a new password.`
+      `Are you sure you want to set this new password for ${user.name || user.email}?\n\nShare this password securely with them.`
     );
     if (!confirmed) return;
 
@@ -108,6 +120,7 @@ export default function Users({ currentUser }) {
           "Content-Type": "application/json",
           "x-user-id": currentUser?.id 
         },
+        body: JSON.stringify({ newPassword })
       });
       
       if (!res.ok) {
@@ -116,7 +129,7 @@ export default function Users({ currentUser }) {
       }
       
       const result = await res.json();
-      alert(result.message || "Password reset email sent successfully!");
+      alert(result.message || "Password reset successfully!");
     } catch (err) {
       alert(err.message);
     }
@@ -169,6 +182,7 @@ export default function Users({ currentUser }) {
     return {
       name: "",
       email: "",
+      password: "",
       phone: "",
       role: "staff",
     };
@@ -280,16 +294,23 @@ export default function Users({ currentUser }) {
                           placeholder="email@example.com"
                           required
                         />
+                        <FormikField
+                          label="Password"
+                          name="password"
+                          type="password"
+                          placeholder="Set user password"
+                          required
+                        />
                         <div style={{ 
                           padding: '0.75rem', 
-                          background: '#e3f2fd', 
+                          background: '#fff3cd', 
                           borderRadius: '4px',
                           marginBottom: '1rem',
                           fontSize: '0.9rem',
-                          color: '#1976d2',
+                          color: '#856404',
                           gridColumn: '1 / -1'
                         }}>
-                          📧 An invitation email will be sent to the user to set their password.
+                          ⚠️ Set a password for the user. Share it securely with them.
                         </div>
                       </>
                     )}
@@ -445,7 +466,7 @@ export default function Users({ currentUser }) {
                         <button
                           className="btn btn-small btn-warning"
                           onClick={() => resetUserPassword(user)}
-                          title="Reset password - sends email to user"
+                          title="Set new password for user"
                           style={{ background: '#ff9800', color: 'white' }}
                         >
                           🔑

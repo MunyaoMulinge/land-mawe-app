@@ -685,9 +685,9 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
-// Create new user (admin only) - sends invitation email
+// Create new user (admin only) - admin sets password directly
 app.post('/api/users', async (req, res) => {
-  const { email, name, phone, role } = req.body;
+  const { email, password, name, phone, role } = req.body;
   const adminId = req.headers['x-user-id'];
   
   try {
@@ -702,32 +702,31 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
-    // Send invitation via Supabase Auth
-    // This sends an email to the user with a link to set their password
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      options: {
-        data: {
-          name: name,
-          role: role || 'staff'
-        }
+    // Create user in Supabase Auth with admin-set password
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: password, // Admin sets the password
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        name: name,
+        role: role || 'staff'
       }
     });
     
     if (authError) {
-      console.error('Supabase Auth invitation error:', authError);
+      console.error('Supabase Auth create error:', authError);
       return res.status(400).json({ error: authError.message });
     }
     
-    // Generate a random password for local database (user will change it via invitation)
-    const tempPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    // Hash password for local database
+    const hashedPassword = await bcrypt.hash(password, 10);
     
     // Insert new user into local database (id is auto-generated as integer)
     const { data: newUser, error } = await supabase
       .from('users')
       .insert([{ 
         email, 
-        password: hashedPassword, // Temporary password
+        password: hashedPassword,
         name, 
         phone,
         role: role || 'staff',
@@ -739,11 +738,11 @@ app.post('/api/users', async (req, res) => {
     if (error) throw error;
     
     // Log activity
-    await logActivity(adminId, 'USER_INVITED', 'user', newUser.id, { email, role: newUser.role });
+    await logActivity(adminId, 'USER_CREATED', 'user', newUser.id, { email, role: newUser.role });
     
     res.json({
       ...newUser,
-      message: 'Invitation sent successfully. User will receive an email to set their password.'
+      message: 'User created successfully. Share the password securely with the user.'
     });
   } catch (err) {
     console.error('Error creating user:', err);
@@ -819,8 +818,9 @@ app.patch('/api/users/:id/toggle-active', async (req, res) => {
   }
 });
 
-// Reset user password (superadmin only) - sends password reset email
+// Reset user password (superadmin only) - admin sets new password directly
 app.post('/api/users/:id/reset-password', async (req, res) => {
+  const { newPassword } = req.body;
   const adminId = req.headers['x-user-id'];
   
   try {
@@ -835,6 +835,11 @@ app.post('/api/users/:id/reset-password', async (req, res) => {
       return res.status(403).json({ error: 'Only Super Admins can reset passwords' });
     }
     
+    // Validate new password
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+    
     // Get user details
     const { data: user, error: userError } = await supabase
       .from('users')
@@ -846,26 +851,39 @@ app.post('/api/users/:id/reset-password', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Send password reset email via Supabase
-    const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email: user.email,
-      options: {
-        redirectTo: `${process.env.SITE_URL || 'http://localhost:5173'}/reset-password`
-      }
-    });
+    // Find user in Supabase Auth
+    const { data: authUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listError) throw listError;
     
-    if (resetError) {
-      console.error('Supabase password reset error:', resetError);
-      return res.status(400).json({ error: resetError.message });
+    const authUser = authUsers.users.find(u => u.email === user.email);
+    if (!authUser) {
+      return res.status(404).json({ error: 'User not found in auth system' });
     }
     
+    // Update password in Supabase Auth
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      authUser.id,
+      { password: newPassword }
+    );
+    
+    if (updateError) {
+      console.error('Supabase password update error:', updateError);
+      return res.status(400).json({ error: updateError.message });
+    }
+    
+    // Update password in local database
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await supabase
+      .from('users')
+      .update({ password: hashedPassword })
+      .eq('id', req.params.id);
+    
     // Log activity
-    await logActivity(adminId, 'PASSWORD_RESET_SENT', 'user', user.id, { email: user.email });
+    await logActivity(adminId, 'PASSWORD_RESET', 'user', user.id, { email: user.email });
     
     res.json({ 
       success: true, 
-      message: `Password reset email sent to ${user.email}. They will receive instructions to set a new password.` 
+      message: `Password has been reset for ${user.name || user.email}. Share the new password securely with them.` 
     });
   } catch (err) {
     console.error('Error resetting password:', err);
