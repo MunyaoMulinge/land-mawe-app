@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-
 import { API_BASE } from '../config'
+import { usePermissions, Can } from '../hooks/usePermissions.jsx'
 const API = API_BASE
 
 export default function Trucks() {
@@ -9,6 +9,7 @@ export default function Trucks() {
   const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ plate_number: '', model: '', capacity: '' })
+  const { hasPermission } = usePermissions()
 
   const fetchTrucks = () => {
     console.log('Fetching trucks from:', `${API}/trucks`);
@@ -66,7 +67,7 @@ export default function Trucks() {
           </button>
         </div>
 
-        {showForm && (
+        {showForm && hasPermission('trucks', 'create') && (
           <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
             <div className="form-row">
               <div className="form-group">

@@ -189,6 +189,116 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Get current user permissions
+app.get('/api/auth/permissions', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  try {
+    const { getUserPermissionsList } = await import('./middleware/permissions.js');
+    const permissions = await getUserPermissionsList(userId);
+    res.json({ permissions });
+  } catch (err) {
+    console.error('Error fetching permissions:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all permissions
+app.get('/api/permissions', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('permissions')
+      .select('*')
+      .order('module, action');
+    
+    if (error) throw error;
+    res.json({ permissions: data });
+  } catch (err) {
+    console.error('Error fetching permissions:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get role permissions
+app.get('/api/permissions/roles', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('role_permissions')
+      .select(`
+        role,
+        granted,
+        permissions!inner(module, action)
+      `)
+      .eq('granted', true);
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching role permissions:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update role permission (superadmin only)
+app.post('/api/permissions/roles', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { role, module, action, granted } = req.body;
+  
+  try {
+    // Check if user is superadmin
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (userError || user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Super Admin access required' });
+    }
+    
+    // Get permission ID
+    const { data: perm, error: permError } = await supabase
+      .from('permissions')
+      .select('id')
+      .eq('module', module)
+      .eq('action', action)
+      .single();
+    
+    if (permError || !perm) {
+      return res.status(404).json({ error: 'Permission not found' });
+    }
+    
+    // Upsert role permission
+    const { data, error } = await supabase
+      .from('role_permissions')
+      .upsert({
+        role,
+        permission_id: perm.id,
+        granted,
+        created_at: new Date().toISOString()
+      }, {
+        onConflict: 'role,permission_id'
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Clear cache
+    const { clearPermissionCache } = await import('./middleware/permissions.js');
+    clearPermissionCache();
+    
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Error updating permission:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Trucks endpoints
 app.get('/api/trucks', async (req, res) => {
   try {
@@ -2604,6 +2714,306 @@ app.patch('/api/fuel/:id/reject', async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('Error rejecting fuel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ TRAILER MANAGEMENT ENDPOINTS ============
+
+// Get all trailers
+app.get('/api/trailers', async (req, res) => {
+  const { status, type } = req.query;
+  
+  try {
+    let query = supabase
+      .from('trailers')
+      .select(`
+        *,
+        current_truck:trucks(plate_number, model)
+      `)
+      .order('created_at', { ascending: false });
+    
+    if (status) query = query.eq('status', status);
+    if (type) query = query.eq('type', type);
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching trailers:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single trailer
+app.get('/api/trailers/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('trailers')
+      .select(`
+        *,
+        current_truck:trucks(plate_number, model)
+      `)
+      .eq('id', req.params.id)
+      .single();
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching trailer:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create trailer
+app.post('/api/trailers', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const {
+    trailer_number, type, make, model, year, capacity_kg, capacity_volume,
+    chassis_number, registration_number, current_truck_id, status, notes
+  } = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from('trailers')
+      .insert([{
+        trailer_number,
+        type,
+        make,
+        model,
+        year,
+        capacity_kg,
+        capacity_volume,
+        chassis_number,
+        registration_number,
+        current_truck_id: current_truck_id || null,
+        status: status || 'available',
+        notes,
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(userId, 'TRAILER_CREATED', 'trailer', data.id, { trailer_number, type });
+    
+    // Create assignment record if truck assigned
+    if (current_truck_id) {
+      await supabase
+        .from('trailer_assignments')
+        .insert([{
+          trailer_id: data.id,
+          truck_id: current_truck_id,
+          assigned_by: userId
+        }]);
+    }
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error creating trailer:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update trailer
+app.patch('/api/trailers/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const updateData = req.body;
+  
+  try {
+    // Get current trailer state
+    const { data: currentTrailer } = await supabase
+      .from('trailers')
+      .select('current_truck_id')
+      .eq('id', req.params.id)
+      .single();
+    
+    const { data, error } = await supabase
+      .from('trailers')
+      .update({
+        ...updateData,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Log activity
+    await logActivity(userId, 'TRAILER_UPDATED', 'trailer', data.id, updateData);
+    
+    // Handle assignment change
+    if (updateData.current_truck_id !== undefined && 
+        updateData.current_truck_id !== currentTrailer.current_truck_id) {
+      
+      // Close old assignment
+      if (currentTrailer.current_truck_id) {
+        await supabase
+          .from('trailer_assignments')
+          .update({ 
+            unassigned_date: new Date().toISOString(),
+            unassigned_by: userId
+          })
+          .eq('trailer_id', req.params.id)
+          .is('unassigned_date', null);
+      }
+      
+      // Create new assignment
+      if (updateData.current_truck_id) {
+        await supabase
+          .from('trailer_assignments')
+          .insert([{
+            trailer_id: req.params.id,
+            truck_id: updateData.current_truck_id,
+            assigned_by: userId
+          }]);
+      }
+    }
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating trailer:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Assign trailer to truck
+app.patch('/api/trailers/:id/assign', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { truck_id } = req.body;
+  
+  try {
+    // Get current assignment
+    const { data: currentTrailer } = await supabase
+      .from('trailers')
+      .select('current_truck_id, trailer_number')
+      .eq('id', req.params.id)
+      .single();
+    
+    // Update trailer
+    const { data, error } = await supabase
+      .from('trailers')
+      .update({
+        current_truck_id: truck_id || null,
+        status: truck_id ? 'in_use' : 'available',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Close old assignment
+    if (currentTrailer.current_truck_id) {
+      await supabase
+        .from('trailer_assignments')
+        .update({ 
+          unassigned_date: new Date().toISOString(),
+          unassigned_by: userId
+        })
+        .eq('trailer_id', req.params.id)
+        .is('unassigned_date', null);
+    }
+    
+    // Create new assignment
+    if (truck_id) {
+      await supabase
+        .from('trailer_assignments')
+        .insert([{
+          trailer_id: req.params.id,
+          truck_id: truck_id,
+          assigned_by: userId
+        }]);
+      
+      await logActivity(userId, 'TRAILER_ASSIGNED', 'trailer', req.params.id, { 
+        trailer_number: currentTrailer.trailer_number,
+        truck_id 
+      });
+    } else {
+      await logActivity(userId, 'TRAILER_UNASSIGNED', 'trailer', req.params.id, {
+        trailer_number: currentTrailer.trailer_number
+      });
+    }
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error assigning trailer:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get trailer maintenance history
+app.get('/api/trailers/:id/maintenance', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('trailer_maintenance')
+      .select('*')
+      .eq('trailer_id', req.params.id)
+      .order('service_date', { ascending: false });
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching maintenance:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add maintenance record
+app.post('/api/trailers/:id/maintenance', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const {
+    service_date, service_type, description, mileage_at_service,
+    cost, vendor_name, vendor_contact, invoice_number,
+    next_service_date, next_service_mileage, notes
+  } = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from('trailer_maintenance')
+      .insert([{
+        trailer_id: req.params.id,
+        service_date,
+        service_type,
+        description,
+        mileage_at_service,
+        cost,
+        vendor_name,
+        vendor_contact,
+        invoice_number,
+        next_service_date,
+        next_service_mileage,
+        notes,
+        created_by: userId
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Update trailer with next service info
+    await supabase
+      .from('trailers')
+      .update({
+        last_service_date: service_date,
+        last_service_mileage: mileage_at_service,
+        next_service_date,
+        next_service_mileage,
+        current_mileage: mileage_at_service,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id);
+    
+    await logActivity(userId, 'TRAILER_MAINTENANCE', 'trailer', req.params.id, { service_type, cost });
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error adding maintenance:', err);
     res.status(500).json({ error: err.message });
   }
 });

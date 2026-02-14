@@ -1,122 +1,220 @@
-# Deployment Checklist - Document Upload Feature
+# Land Mawe - Deployment Checklist
 
-## ✅ Pre-Deployment Steps (DO THESE FIRST!)
+## ✅ Code is Production Ready
 
-### 1. Setup Supabase Storage Bucket
-**CRITICAL: Do this before deploying!**
+All debug logs have been removed. The system is ready to push.
 
-1. Go to https://supabase.com/dashboard
-2. Select project: `fipbfnjzaamjayzqvlvg`
-3. Click **Storage** in sidebar
-4. Click **"New bucket"**
-5. Name: `documents`
-6. ✅ Check **"Public bucket"**
-7. Click **"Create bucket"**
+---
 
-### 2. Run Database Migration
-In Supabase SQL Editor, run:
+## 📋 Pre-Deployment Checklist
+
+### 1. Database Migrations (Run in Supabase)
+
+**Required SQL Files to Run:**
+
 ```sql
--- Copy and paste contents of migrations/011_document_upload.sql
-ALTER TABLE truck_documents ADD COLUMN IF NOT EXISTS document_url TEXT;
-ALTER TABLE truck_documents ADD COLUMN IF NOT EXISTS document_filename VARCHAR(255);
-ALTER TABLE truck_documents ADD COLUMN IF NOT EXISTS document_size INTEGER;
-ALTER TABLE truck_documents ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+-- 1. Trailers Module
+-- File: migrations/add_trailers_table.sql
+
+-- 2. GPS Tracking for Fuel
+-- File: migrations/add_gps_to_fuel.sql
+
+-- 3. Granular Permissions System
+-- File: migrations/add_permissions_system.sql
 ```
 
-### 3. Install Dependencies
+**Run Order:**
+1. `add_trailers_table.sql`
+2. `add_gps_to_fuel.sql`
+3. `add_permissions_system.sql`
+
+---
+
+### 2. Environment Variables
+
+Ensure these are set in your server environment:
+
+```env
+# Server (.env)
+DATABASE_URL=postgresql://...
+SUPABASE_URL=https://...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+PORT=3001
+
+# Client (.env)
+VITE_API_BASE=http://localhost:3001/api
+```
+
+---
+
+### 3. Deploy Steps
+
+#### Backend (Server)
 ```bash
 cd server
 npm install
-cd ..
+# Run database migrations in Supabase SQL Editor
+npm start
 ```
 
----
-
-## 🚀 Deployment Steps
-
-### 1. Commit Changes
+#### Frontend (Client)
 ```bash
-git add .
-git commit -m "Add document upload with Supabase Storage"
-git push
-```
-
-### 2. Deploy to Vercel
-```bash
-vercel --prod
+cd client
+npm install
+npm run build
+# Deploy dist/ folder to Vercel/Netlify
 ```
 
 ---
 
-## ✅ Post-Deployment Testing
+## 🎉 What's New in This Release
 
-### 1. Test Document Upload
-1. Login as admin/superadmin
-2. Go to **Compliance** tab
-3. Click **"All Documents"**
-4. Click **"+ Add Document"**
-5. Fill in details
-6. Click **"Upload Document"** and select a PDF/JPG/PNG
-7. Click **"💾 Save Document"**
-8. Should see success and document in list
+### 1. Trailers Module 🚚
+- Full trailer management
+- Assign trailers to trucks
+- Maintenance tracking
+- Types: Flatbed, Enclosed, Refrigerated, Tanker, Lowboy, Car Carrier
 
-### 2. Test Document Viewing
-1. Find document with uploaded file
-2. Click **"📄 View"** button
-3. Document should open in new tab
-4. URL should be: `https://fipbfnjzaamjayzqvlvg.supabase.co/storage/v1/object/public/documents/...`
+### 2. Granular Permissions System 🔐
+- Control exactly what each user can do
+- Permission Manager UI (Super Admin only)
+- Per-module, per-action permissions
+- Cache for performance (5 min TTL)
 
-### 3. Test File Validation
-1. Try uploading file > 10MB (should fail)
-2. Try uploading .txt or .doc file (should fail)
-3. Try uploading without file (should work - file is optional)
+### 3. GPS Verification for Fuel 📍
+- Drivers must capture location when recording fuel
+- Prevents fraud
+- Finance can verify on Google Maps
 
----
+### 4. Session Management ⏱️
+- 24-hour token expiration
+- 3-minute idle timeout
+- Warning modal before logout
+- Visual timer in header
 
-## 🐛 Troubleshooting
-
-### "Bucket not found" error
-- ❌ You didn't create the storage bucket
-- ✅ Go to Supabase and create `documents` bucket
-
-### "Permission denied" error
-- ❌ Bucket is not public
-- ✅ Edit bucket settings and check "Public bucket"
-
-### "Column does not exist" error
-- ❌ Migration not run
-- ✅ Run migration 011 in Supabase SQL Editor
-
-### Upload works but can't view file
-- ❌ Bucket is not public
-- ✅ Make bucket public in Supabase Storage settings
+### 5. Formik Integration 📝
+- All forms use Formik + Yup validation
+- Better user experience
+- Real-time validation
 
 ---
 
-## 📊 What Changed
+## 👥 Recommended Initial Setup
 
-### Files Modified:
-- ✅ `server/index.js` - Updated upload endpoint to use Supabase Storage
-- ✅ `server/package.json` - Added multer dependency
-- ✅ `client/src/components/Compliance.jsx` - Added file upload UI
-- ✅ `migrations/011_document_upload.sql` - Added document_url columns
+### Step 1: Create Users with Correct Roles
+1. Log in as Super Admin
+2. Go to Users → Add User
+3. Create:
+   - **Komen** → Role: `admin`
+   - **James** → Role: `staff`
+   - **Sammy** → Role: `staff`
+   - **Finance** → Role: `finance`
 
-### New Features:
-- ✅ Upload PDF, JPG, PNG files (max 10MB)
-- ✅ Files stored in Supabase Storage (persistent)
-- ✅ View uploaded documents via public URL
-- ✅ File preview before upload
-- ✅ Upload progress indicator
-- ✅ Works on Vercel production
+### Step 2: Configure Permissions
+1. Go to 🔐 Permissions (Super Admin only)
+2. Select each role
+3. Apply Quick Templates:
+   - **Admin** → 👑 Admin template
+   - **Staff** → 👤 Staff template
+   - **Finance** → 💰 Finance template
+   - **Driver** → 🚗 Driver template
+
+### Step 3: Data Entry (Assign to James)
+- [ ] Enter all Trucks
+- [ ] Enter all Trailers
+- [ ] Enter all Drivers
+- [ ] Enter all Equipment
+- [ ] Record truck mileage & fuel averages
 
 ---
 
-## 🎯 Summary
+## 🧪 Testing Checklist
 
-**YES, it will work on Vercel after you:**
-1. ✅ Create `documents` storage bucket in Supabase (public)
-2. ✅ Run migration 011
-3. ✅ Install multer (`cd server && npm install`)
-4. ✅ Deploy
+### Permissions
+- [ ] Staff cannot see Trucks after unchecking `trucks:view`
+- [ ] Staff can create job cards
+- [ ] Staff cannot approve fuel (finance does)
+- [ ] Finance can approve fuel
+- [ ] Driver can only see Driver Portal
 
-**The feature uses Supabase Storage, not local file system, so it's production-ready for Vercel!**
+### Core Features
+- [ ] Add truck → Success
+- [ ] Add trailer → Assign to truck
+- [ ] Create job card → Approve → Depart → Complete
+- [ ] Record fuel with GPS → Approve
+- [ ] Create invoice → Record payment
+
+---
+
+## 📁 Files Changed/New
+
+### New Files
+```
+client/src/components/Trailers.jsx
+client/src/components/PermissionManager.jsx
+client/src/hooks/usePermissions.jsx
+client/src/hooks/useSession.js
+client/src/components/IdleWarningModal.jsx
+client/src/components/AnimatedModal.jsx
+client/src/components/AnimatedToast.jsx
+client/src/components/AnimatedLoader.jsx
+client/src/components/SkeletonLoader.jsx
+client/src/components/FormikField.jsx
+client/src/validations/schemas.js
+server/middleware/permissions.js
+migrations/add_trailers_table.sql
+migrations/add_gps_to_fuel.sql
+migrations/add_permissions_system.sql
+```
+
+### Modified Files
+```
+client/src/App.jsx (React Router + Permissions)
+client/src/components/Auth.jsx (Formik)
+client/src/components/Users.jsx (Formik + Search)
+client/src/components/Fuel.jsx (GPS + Formik)
+client/src/components/Drivers.jsx (Formik + AnimatedModal)
+client/src/components/JobCards.jsx (Formik)
+client/src/components/Invoices.jsx (Formik)
+client/src/components/Equipment.jsx (Formik)
+client/src/components/DriverPortal.jsx (GPS)
+client/src/components/ActivityLogs.jsx (CSS vars)
+client/src/App.css (Animations + dark mode fixes)
+client/src/index.css (Inter font)
+server/index.js (Permission endpoints + Trailer endpoints)
+```
+
+---
+
+## 🚀 Post-Deployment
+
+### Moses should:
+1. Run database migrations
+2. Create user accounts
+3. Configure permissions
+4. Train the team
+
+### Team Training Topics:
+1. Login & Session timeout
+2. Role-based access (what each person can do)
+3. Creating job cards
+4. Recording fuel with GPS
+5. Approval workflows
+6. Using the mobile-friendly Driver Portal
+
+---
+
+## 🆘 Support
+
+If anything breaks:
+1. Check browser console for errors
+2. Check server logs
+3. Verify database migrations ran
+4. Check permissions in Supabase
+
+---
+
+**Status: ✅ READY TO DEPLOY**
+
+Good luck with the team training! 🎓

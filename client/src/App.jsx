@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, Outlet } from 'react-router-dom'
 import { useTheme } from './hooks/useTheme'
 import { useSession, getSessionInfo, formatTimeRemaining } from './hooks/useSession'
+import { PermissionsProvider, usePermissions } from './hooks/usePermissions.jsx'
 import IdleWarningModal from './components/IdleWarningModal'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import Trucks from './components/Trucks'
+import Trailers from './components/Trailers'
 import Drivers from './components/Drivers'
 import Bookings from './components/Bookings'
 import Equipment from './components/Equipment'
@@ -16,6 +18,7 @@ import Compliance from './components/Compliance'
 import Invoices from './components/Invoices'
 import Users from './components/Users'
 import ActivityLogs from './components/ActivityLogs'
+import PermissionManager from './components/PermissionManager'
 import DriverPortal from './components/DriverPortal'
 import './App.css'
 
@@ -24,6 +27,7 @@ const baseTabs = [
   { id: 'dashboard', label: '📊 Dashboard', path: '/', roles: ['superadmin', 'admin', 'finance', 'staff'] },
   { id: 'bookings', label: '📅 Bookings', path: '/bookings', roles: ['superadmin', 'admin', 'staff'] },
   { id: 'trucks', label: '🚛 Trucks', path: '/trucks', roles: ['superadmin', 'admin', 'staff'] },
+  { id: 'trailers', label: '🚚 Trailers', path: '/trailers', roles: ['superadmin', 'admin', 'staff'] },
   { id: 'drivers', label: '👤 Drivers', path: '/drivers', roles: ['superadmin', 'admin', 'staff'] },
   { id: 'equipment', label: '📦 Equipment', path: '/equipment', roles: ['superadmin', 'admin', 'staff'] },
   { id: 'jobcards', label: '📋 Job Cards', path: '/jobcards', roles: ['superadmin', 'admin', 'staff'] },
@@ -32,7 +36,8 @@ const baseTabs = [
   { id: 'compliance', label: '🛡️ Compliance', path: '/compliance', roles: ['superadmin', 'admin', 'staff'] },
   { id: 'invoices', label: '💰 Invoices', path: '/invoices', roles: ['superadmin', 'finance'] },
   { id: 'users', label: '👥 Users', path: '/users', roles: ['superadmin', 'admin'] },
-  { id: 'activity', label: '📋 Activity', path: '/activity', roles: ['superadmin', 'admin'] }
+  { id: 'activity', label: '📋 Activity', path: '/activity', roles: ['superadmin', 'admin'] },
+  { id: 'permissions', label: '🔐 Permissions', path: '/permissions', roles: ['superadmin'] }
 ]
 
 // Protected Route component for role-based access
@@ -79,12 +84,24 @@ function Layout({ user, onLogout }) {
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const [showWarning, setShowWarning] = useState(false)
+  const { hasPermission, permissions } = usePermissions()
   
   // Initialize session management
   const { showWarning: sessionWarning } = useSession(onLogout, () => setShowWarning(true))
   
-  // Filter tabs based on user role
-  const tabs = baseTabs.filter(tab => tab.roles.includes(user.role || 'staff'))
+  // Filter tabs based on granular permissions
+  const tabs = baseTabs.filter(tab => {
+    // Super admin sees everything
+    if (user.role === 'superadmin') return true
+    // During loading, fall back to role-based check
+    if (permissions.length === 0) {
+      return tab.roles.includes(user.role || 'staff')
+    }
+    // Check if user has view permission for this module
+    const moduleName = tab.id === 'activity' ? 'activity_logs' : 
+                       tab.id === 'jobcards' ? 'job_cards' : tab.id
+    return hasPermission(moduleName, 'view')
+  })
 
   const getRoleDisplay = (role) => {
     switch(role) {
@@ -295,9 +312,10 @@ function App() {
 
   // Admin/Staff routes
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout user={user} onLogout={handleLogout} />}>
+    <PermissionsProvider currentUser={user}>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout user={user} onLogout={handleLogout} />}>
           {/* Public routes for all authenticated users */}
           <Route path="/" element={<Dashboard />} />
           
@@ -315,6 +333,14 @@ function App() {
             element={
               <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff']}>
                 <Trucks />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/trailers" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'staff']}>
+                <Trailers currentUser={user} />
               </ProtectedRoute>
             } 
           />
@@ -394,12 +420,21 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="/permissions" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['superadmin']}>
+                <PermissionManager currentUser={user} />
+              </ProtectedRoute>
+            } 
+          />
           
           {/* Catch all - redirect to dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
+    </PermissionsProvider>
   )
 }
 
