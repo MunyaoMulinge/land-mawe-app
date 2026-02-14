@@ -1,9 +1,179 @@
 import { useState, useEffect } from 'react'
-import { Formik, Form } from 'formik'
+import { Formik, Form, useFormikContext } from 'formik'
 import { API_BASE } from '../config'
 import AnimatedToast from './AnimatedToast'
 import FormikField from './FormikField'
 import { fuelSchema } from '../validations/schemas'
+
+// Live Location Capture Component
+function LiveLocationCapture({ onLocationCaptured }) {
+  const [location, setLocation] = useState(null)
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [address, setAddress] = useState('')
+
+  const captureLocation = () => {
+    setLoading(true)
+    setError(null)
+    
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser')
+      setLoading(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords
+        const locationData = {
+          latitude,
+          longitude,
+          accuracy: Math.round(accuracy),
+          timestamp: new Date().toISOString()
+        }
+        setLocation(locationData)
+        
+        // Try to reverse geocode to get address
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          )
+          const data = await response.json()
+          const locationName = data.display_name || `${latitude}, ${longitude}`
+          setAddress(locationName)
+          onLocationCaptured(locationName, locationData)
+        } catch (err) {
+          // If reverse geocoding fails, use coordinates
+          const coordString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+          setAddress(coordString)
+          onLocationCaptured(coordString, locationData)
+        }
+        
+        setLoading(false)
+      },
+      (err) => {
+        setLoading(false)
+        switch(err.code) {
+          case err.PERMISSION_DENIED:
+            setError('Location permission denied. Please enable location services.')
+            break
+          case err.POSITION_UNAVAILABLE:
+            setError('Location information unavailable.')
+            break
+          case err.TIMEOUT:
+            setError('Location request timed out.')
+            break
+          default:
+            setError('An error occurred while getting location.')
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    )
+  }
+
+  return (
+    <div style={{ 
+      padding: '1rem', 
+      background: 'var(--bg-tertiary)', 
+      borderRadius: '8px',
+      border: location ? '2px solid #28a745' : '1px solid var(--border-color)'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <span style={{ fontSize: '1.2rem' }}>📍</span>
+        <strong style={{ color: 'var(--text-primary)' }}>Live Location Verification</strong>
+        {location && <span style={{ color: '#28a745', fontSize: '0.8rem' }}>✓ Captured</span>}
+      </div>
+      
+      {!location ? (
+        <div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+            Click the button below to capture your current GPS location. This helps prevent fraud and verifies you are at the fuel station.
+          </p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontStyle: 'italic' }}>
+            💡 Note: The address shown may be the nearest landmark. The exact coordinates are what matter for verification.
+          </p>
+          <button
+            type="button"
+            onClick={captureLocation}
+            disabled={loading}
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            {loading ? (
+              <>
+                <span className="spinner" style={{ 
+                  width: '16px', 
+                  height: '16px', 
+                  border: '2px solid rgba(255,255,255,0.3)', 
+                  borderTop: '2px solid white', 
+                  borderRadius: '50%', 
+                  animation: 'spin 1s linear infinite' 
+                }} />
+                Getting Location...
+              </>
+            ) : (
+              <>
+                📍 Capture Current Location
+              </>
+            )}
+          </button>
+          {error && (
+            <p style={{ color: '#dc3545', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+              ⚠️ {error}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div>
+          <div style={{ 
+            background: '#d4edda', 
+            color: '#155724', 
+            padding: '0.75rem', 
+            borderRadius: '6px',
+            marginBottom: '0.75rem'
+          }}>
+            <strong>✓ Location Verified</strong>
+            <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+              📍 {address}
+            </div>
+            <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
+              Accuracy: ±{location.accuracy} meters • {new Date(location.timestamp).toLocaleTimeString()}
+            </div>
+            <div style={{ fontSize: '0.7rem', marginTop: '0.25rem', opacity: 0.7 }}>
+              Coordinates: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+            </div>
+            <a 
+              href={`https://www.google.com/maps?q=${location.latitude},${location.longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ 
+                display: 'inline-block',
+                marginTop: '0.5rem',
+                fontSize: '0.8rem',
+                color: '#155724',
+                textDecoration: 'underline'
+              }}
+            >
+              🗺️ View on Google Maps →
+            </a>
+          </div>
+          <button
+            type="button"
+            onClick={captureLocation}
+            className="btn"
+            style={{ fontSize: '0.8rem' }}
+          >
+            🔄 Recapture Location
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Fuel({ currentUser }) {
   const [fuelRecords, setFuelRecords] = useState([])
@@ -29,7 +199,10 @@ export default function Fuel({ currentUser }) {
     odometer_reading: '',
     fuel_type: 'diesel',
     payment_method: 'cash',
-    notes: ''
+    notes: '',
+    gps_coordinates: '',
+    gps_accuracy: '',
+    gps_timestamp: ''
   }
 
   const fetchData = async () => {
@@ -246,10 +419,17 @@ export default function Fuel({ currentUser }) {
               validateOnBlur={true}
               onSubmit={handleSubmit}
             >
-              {({ values, isSubmitting }) => {
+              {({ values, isSubmitting, setFieldValue }) => {
                 const totalCost = values.quantity_liters && values.cost_per_liter 
                   ? formatCurrency(parseFloat(values.quantity_liters) * parseFloat(values.cost_per_liter))
                   : ''
+                
+                const handleLocationCaptured = (locationName, locationData) => {
+                  setFieldValue('station_location', locationName)
+                  setFieldValue('gps_coordinates', `${locationData.latitude},${locationData.longitude}`)
+                  setFieldValue('gps_accuracy', locationData.accuracy)
+                  setFieldValue('gps_timestamp', locationData.timestamp)
+                }
                 
                 return (
                   <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
@@ -358,8 +538,20 @@ export default function Fuel({ currentUser }) {
                     <FormikField
                       label="Notes"
                       name="notes"
+                      type="textarea"
                       placeholder="Additional notes..."
                     />
+                    
+                    {/* Live Location Capture */}
+                    <div style={{ marginBottom: '1rem' }}>
+                      <LiveLocationCapture onLocationCaptured={handleLocationCaptured} />
+                    </div>
+                    
+                    {/* Hidden GPS fields */}
+                    <input type="hidden" name="gps_coordinates" value={values.gps_coordinates} />
+                    <input type="hidden" name="gps_accuracy" value={values.gps_accuracy} />
+                    <input type="hidden" name="gps_timestamp" value={values.gps_timestamp} />
+                    
                     <button type="submit" className="btn btn-success" disabled={isSubmitting}>
                       {isSubmitting ? 'Saving...' : '💾 Save Fuel Record'}
                     </button>
@@ -379,6 +571,7 @@ export default function Fuel({ currentUser }) {
                 <th>Cost/L</th>
                 <th>Total</th>
                 <th>Station</th>
+                <th>📍 GPS</th>
                 <th>Payment</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -393,7 +586,49 @@ export default function Fuel({ currentUser }) {
                   <td><strong>{parseFloat(record.quantity_liters).toFixed(1)}L</strong></td>
                   <td>{formatCurrency(record.cost_per_liter)}</td>
                   <td><strong style={{ color: '#e67e22' }}>{formatCurrency(record.total_cost)}</strong></td>
-                  <td>{record.fuel_station || '-'}</td>
+                  <td>
+                    {record.fuel_station || '-'}
+                    {record.station_location && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        📍 {record.station_location.substring(0, 30)}{record.station_location.length > 30 ? '...' : ''}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    {record.gps_coordinates ? (
+                      <div>
+                        <span 
+                          className="badge" 
+                          title={`GPS: ${record.gps_coordinates}\nAccuracy: ±${record.gps_accuracy}m\nTime: ${new Date(record.gps_timestamp).toLocaleTimeString()}`}
+                          style={{ 
+                            background: record.gps_accuracy < 50 ? '#d4edda' : '#fff3cd',
+                            color: record.gps_accuracy < 50 ? '#155724' : '#856404',
+                            cursor: 'help'
+                          }}
+                        >
+                          📍 {record.gps_accuracy < 50 ? 'High' : 'Low'}
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps?q=${record.gps_coordinates}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            marginLeft: '0.25rem',
+                            color: 'var(--accent-primary)',
+                            textDecoration: 'underline'
+                          }}
+                          title="View on map"
+                        >
+                          Map
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="badge" style={{ background: '#e2e3e5', color: '#383d41' }}>
+                        ❌ None
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <span className="badge" style={{ 
                       background: record.payment_method === 'cash' ? '#d4edda' : '#cce5ff',

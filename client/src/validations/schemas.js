@@ -57,16 +57,32 @@ export const fuelSchema = Yup.object({
     .required('Driver is required'),
   fuel_date: Yup.date()
     .required('Date is required'),
-  liters: Yup.number()
+  quantity_liters: Yup.number()
     .positive('Liters must be positive')
     .required('Liters is required'),
-  amount: Yup.number()
-    .positive('Amount must be positive')
-    .required('Amount is required'),
-  station: Yup.string()
-    .min(2, 'Station name is too short')
-    .required('Station is required'),
+  cost_per_liter: Yup.number()
+    .positive('Cost must be positive')
+    .required('Cost is required'),
+  fuel_station: Yup.string()
+    .min(2, 'Station name is too short'),
+  station_location: Yup.string()
+    .min(2, 'Location is too short'),
   receipt_number: Yup.string()
+    .nullable(),
+  odometer_reading: Yup.number()
+    .positive('Odometer must be positive')
+    .nullable(),
+  fuel_type: Yup.string()
+    .oneOf(['diesel', 'petrol', 'gas'], 'Invalid fuel type'),
+  payment_method: Yup.string()
+    .oneOf(['cash', 'card', 'mpesa', 'corporate'], 'Invalid payment method'),
+  notes: Yup.string()
+    .nullable(),
+  gps_coordinates: Yup.string()
+    .nullable(),
+  gps_accuracy: Yup.number()
+    .nullable(),
+  gps_timestamp: Yup.string()
     .nullable()
 });
 

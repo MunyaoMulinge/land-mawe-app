@@ -2381,7 +2381,8 @@ app.post('/api/fuel', async (req, res) => {
   const { 
     truck_id, driver_id, job_card_id, fuel_date, quantity_liters, 
     cost_per_liter, fuel_station, station_location, receipt_number,
-    odometer_reading, fuel_type, payment_method, notes 
+    odometer_reading, fuel_type, payment_method, notes,
+    gps_coordinates, gps_accuracy, gps_timestamp
   } = req.body;
   const userId = req.headers['x-user-id'];
   
@@ -2406,7 +2407,10 @@ app.post('/api/fuel', async (req, res) => {
         fuel_type: fuel_type || 'diesel',
         payment_method: payment_method || 'cash',
         notes,
-        approval_status: 'pending'
+        approval_status: 'pending',
+        gps_coordinates,
+        gps_accuracy,
+        gps_timestamp
       }])
       .select()
       .single();
