@@ -658,7 +658,7 @@ export default function Fuel({ currentUser }) {
                     </span>
                   </td>
                   <td>
-                    {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
+                    {hasPermission('fuel', 'delete') && (
                       <button 
                         className="btn btn-small btn-danger"
                         onClick={() => deleteRecord(record.id)}

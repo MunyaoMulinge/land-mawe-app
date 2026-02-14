@@ -3,11 +3,13 @@ import { Formik, Form } from "formik";
 import { API_BASE } from "../config";
 import { gsap } from "gsap";
 import { useShake } from "../hooks/useAnimations";
+import { usePermissions } from "../hooks/usePermissions";
 import AnimatedLoader from "./AnimatedLoader";
 import FormikField from "./FormikField";
 import { userSchema } from "../validations/schemas";
 
 export default function Users({ currentUser }) {
+  const { hasPermission, isSuperAdmin } = usePermissions();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -154,8 +156,7 @@ export default function Users({ currentUser }) {
           }}
         >
           <h2>👥 User Management</h2>
-          {(currentUser?.role === "admin" ||
-            currentUser?.role === "superadmin") && (
+          {hasPermission('users', 'create') && (
             <button
               className="btn btn-primary"
               onClick={() => setShowForm(!showForm)}
@@ -209,9 +210,7 @@ export default function Users({ currentUser }) {
           )}
         </div>
 
-        {showForm &&
-          (currentUser?.role === "admin" ||
-            currentUser?.role === "superadmin") && (
+        {showForm && (hasPermission('users', 'create') || hasPermission('users', 'edit')) && (
             <Formik
               initialValues={getInitialValues()}
               validationSchema={userSchema}
@@ -293,7 +292,7 @@ export default function Users({ currentUser }) {
                         <option value="admin">Admin</option>
                         <option value="finance">Finance</option>
                         <option value="driver">Driver</option>
-                        {currentUser?.role === "superadmin" && (
+                        {isSuperAdmin && (
                           <option value="superadmin">Super Admin</option>
                         )}
                       </select>
@@ -335,8 +334,7 @@ export default function Users({ currentUser }) {
               <th>Role</th>
               <th>Status</th>
               <th>Joined</th>
-              {(currentUser?.role === "admin" ||
-                currentUser?.role === "superadmin") && <th>Actions</th>}
+              {(hasPermission('users', 'edit') || hasPermission('users', 'delete')) && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -393,18 +391,19 @@ export default function Users({ currentUser }) {
                   </span>
                 </td>
                 <td>{new Date(user.created_at).toLocaleDateString()}</td>
-                {(currentUser?.role === "admin" ||
-                  currentUser?.role === "superadmin") && (
+                {(hasPermission('users', 'edit') || hasPermission('users', 'delete')) && (
                   <td>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button
-                        className="btn btn-small"
-                        onClick={() => startEdit(user)}
-                        title="Edit user"
-                      >
-                        ✏️
-                      </button>
-                      {user.id !== currentUser?.id && (
+                      {hasPermission('users', 'edit') && (
+                        <button
+                          className="btn btn-small"
+                          onClick={() => startEdit(user)}
+                          title="Edit user"
+                        >
+                          ✏️
+                        </button>
+                      )}
+                      {hasPermission('users', 'delete') && user.id !== currentUser?.id && (
                         <button
                           ref={deleteButtonRef}
                           className={`btn btn-small ${
