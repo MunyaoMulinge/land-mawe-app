@@ -303,8 +303,15 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout user={user} onLogout={handleLogout} />}>
-          {/* Public routes for all authenticated users */}
-          <Route path="/" element={<Dashboard />} />
+          {/* Dashboard - controlled by permissions */}
+          <Route 
+            path="/" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
+                <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
           
           {/* Module routes - access controlled by granular permissions */}
           <Route 

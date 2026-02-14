@@ -3,6 +3,7 @@ import { API_BASE } from '../config'
 import AnimatedLoader from './AnimatedLoader'
 
 const MODULES = [
+  { id: 'dashboard', label: '📊 Dashboard', color: '#3498db' },
   { id: 'trucks', label: '🚛 Trucks', color: '#3498db' },
   { id: 'trailers', label: '🚚 Trailers', color: '#9b59b6' },
   { id: 'drivers', label: '👤 Drivers', color: '#e67e22' },
