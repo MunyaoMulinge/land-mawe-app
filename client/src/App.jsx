@@ -51,6 +51,15 @@ function ProtectedRoute({ user, allowedRoles, children }) {
   return children
 }
 
+// Auth wrapper - redirects to login if not authenticated
+function RequireAuth({ user, children }) {
+  const location = useLocation()
+  if (!user) {
+    return <Navigate to="/" state={{ from: location }} replace />
+  }
+  return children
+}
+
 // Session Timer Component
 function SessionTimer() {
   const [timeLeft, setTimeLeft] = useState('')
@@ -87,11 +96,6 @@ function Layout({ user, onLogout }) {
   const location = useLocation()
   const [showWarning, setShowWarning] = useState(false)
   const { hasPermission, permissions } = usePermissions()
-  
-  // If no user, don't render layout (will redirect)
-  if (!user) {
-    return <Navigate to="/" replace />
-  }
   
   // Initialize session management
   const { showWarning: sessionWarning } = useSession(onLogout, () => setShowWarning(true))
@@ -317,7 +321,7 @@ function App() {
           />
           
           {/* Protected routes (require auth) */}
-          <Route element={<Layout user={user} onLogout={handleLogout} />}>
+          <Route element={<RequireAuth user={user}><Layout user={user} onLogout={handleLogout} /></RequireAuth>}>
           {/* Dashboard - controlled by permissions */}
           <Route 
             path="/dashboard" 
