@@ -75,22 +75,33 @@ export default function PermissionManager({ currentUser }) {
     }
   }
 
-  const togglePermission = async (role, module, action, granted) => {
+  // Map UI actions to database actions
+  const actionToDbAction = {
+    'fuel:create': 'fuel:record' // UI shows 'create', DB stores 'record'
+  }
+
+  const togglePermission = async (role, module, action, granted, showMsg = true) => {
     setSaving(true)
     try {
+      // Convert UI action to database action if needed
+      const permissionKey = `${module}:${action}`
+      const dbAction = actionToDbAction[permissionKey] 
+        ? actionToDbAction[permissionKey].split(':')[1] 
+        : action
+      
       const res = await fetch(`${API_BASE}/permissions/roles`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser?.id
         },
-        body: JSON.stringify({ role, module, action, granted })
+        body: JSON.stringify({ role, module, action: dbAction, granted })
       })
 
       if (!res.ok) throw new Error('Failed to update permission')
 
-      // Update local state
-      const key = `${module}:${action}`
+      // Update local state (use original key for UI consistency)
+      const key = permissionKey
       setRolePermissions(prev => {
         const updated = { ...prev }
         if (!updated[role]) updated[role] = new Set()
@@ -102,22 +113,40 @@ export default function PermissionManager({ currentUser }) {
         return updated
       })
 
-      setMessage('Permission updated successfully!')
-      setTimeout(() => setMessage(''), 3000)
+      if (showMsg) {
+        setMessage('Permission updated successfully!')
+        setTimeout(() => setMessage(''), 3000)
+      }
     } catch (err) {
-      setMessage('Error: ' + err.message)
+      if (showMsg) {
+        setMessage('Error: ' + err.message)
+      }
     } finally {
       setSaving(false)
     }
   }
 
+  // Permission aliases for backwards compatibility
+  const permissionAliases = {
+    'fuel:create': ['fuel:record'] // fuel:create is equivalent to fuel:record
+  }
+
   const hasPermission = (role, module, action) => {
     if (role === 'superadmin') return true
     const key = `${module}:${action}`
-    return rolePermissions[role]?.has(key) || false
+    
+    // Check exact permission
+    if (rolePermissions[role]?.has(key)) return true
+    
+    // Check aliases
+    const aliases = permissionAliases[key] || []
+    return aliases.some(alias => rolePermissions[role]?.has(alias))
   }
 
   const applyTemplate = async (template) => {
+    setSaving(true)
+    setMessage(`Applying ${template} template...`)
+    
     const templates = {
       admin: ['view', 'create', 'edit', 'approve'],
       staff: ['view', 'create', 'edit'],
@@ -126,12 +155,60 @@ export default function PermissionManager({ currentUser }) {
     }
 
     const allowedActions = templates[template] || ['view']
+    const updates = []
 
+    // Collect all updates first
     for (const module of MODULES) {
       for (const action of ACTIONS) {
         const shouldGrant = allowedActions.includes(action.id)
-        await togglePermission(selectedRole, module.id, action.id, shouldGrant)
+        const key = `${module.id}:${action.id}`
+        
+        // Update local state immediately (optimistic)
+        setRolePermissions(prev => {
+          const updated = { ...prev }
+          if (!updated[selectedRole]) updated[selectedRole] = new Set()
+          if (shouldGrant) {
+            updated[selectedRole].add(key)
+          } else {
+            updated[selectedRole].delete(key)
+          }
+          return updated
+        })
+        
+        // Queue API call
+        updates.push({ module: module.id, action: action.id, granted: shouldGrant })
       }
+    }
+
+    // Batch API calls with Promise.all
+    try {
+      await Promise.all(
+        updates.map(({ module, action, granted }) => {
+          // Convert UI action to database action if needed
+          const permissionKey = `${module}:${action}`
+          const dbAction = actionToDbAction[permissionKey] 
+            ? actionToDbAction[permissionKey].split(':')[1] 
+            : action
+          
+          return fetch(`${API_BASE}/permissions/roles`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': currentUser?.id
+            },
+            body: JSON.stringify({ role: selectedRole, module, action: dbAction, granted })
+          })
+        })
+      )
+      
+      setMessage(`✅ ${template.charAt(0).toUpperCase() + template.slice(1)} template applied!`)
+      setTimeout(() => setMessage(''), 3000)
+    } catch (err) {
+      setMessage('❌ Error applying template: ' + err.message)
+      // Refresh to get actual state from server
+      fetchPermissions()
+    } finally {
+      setSaving(false)
     }
   }
 

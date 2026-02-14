@@ -77,6 +77,11 @@ async function getUserPermissions(userId) {
   }
 }
 
+// Permission aliases for backwards compatibility
+const PERMISSION_ALIASES = {
+  'fuel:create': ['fuel:record'] // fuel:create is equivalent to fuel:record
+};
+
 // Check if user has a specific permission
 export async function checkPermission(userId, module, action) {
   try {
@@ -96,8 +101,15 @@ export async function checkPermission(userId, module, action) {
     const rolePermissions = await getRolePermissions(user.role);
     const permissionKey = `${module}:${action}`;
     
-    // Check if role has permission
+    // Check if role has the exact permission
     const hasRolePermission = rolePermissions.includes(permissionKey);
+    if (hasRolePermission) return true;
+    
+    // Check permission aliases (e.g., fuel:create -> fuel:record)
+    const aliases = PERMISSION_ALIASES[permissionKey] || [];
+    for (const alias of aliases) {
+      if (rolePermissions.includes(alias)) return true;
+    }
     
     // Get user-specific overrides
     const userPermissions = await getUserPermissions(userId);
@@ -107,7 +119,14 @@ export async function checkPermission(userId, module, action) {
       return userPermissions[permissionKey];
     }
     
-    return hasRolePermission;
+    // Check aliases in user overrides too
+    for (const alias of aliases) {
+      if (alias in userPermissions) {
+        return userPermissions[alias];
+      }
+    }
+    
+    return false;
   } catch (err) {
     console.error('Error checking permission:', err);
     return false;

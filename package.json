@@ -8,5 +8,8 @@
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
     "build": "cd client && npm run build",
     "vercel-build": "cd client && npm install && npm run build"
+  },
+  "dependencies": {
+    "express-rate-limit": "^8.2.1"
   }
 }

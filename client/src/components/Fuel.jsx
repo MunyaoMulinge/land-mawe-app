@@ -4,6 +4,7 @@ import { API_BASE } from '../config'
 import AnimatedToast from './AnimatedToast'
 import FormikField from './FormikField'
 import { fuelSchema } from '../validations/schemas'
+import { usePermissions } from '../hooks/usePermissions'
 
 // Live Location Capture Component
 function LiveLocationCapture({ onLocationCaptured }) {
@@ -405,9 +406,11 @@ export default function Fuel({ currentUser }) {
                 style={{ padding: '0.5rem', borderRadius: '4px' }}
                 placeholder="To"
               />
-              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                {showForm ? 'Cancel' : '+ Add Fuel Record'}
-              </button>
+              {hasPermission('fuel', 'create') && (
+                <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+                  {showForm ? 'Cancel' : '+ Add Fuel Record'}
+                </button>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
 import AnimatedToast from './AnimatedToast'
+import { usePermissions } from '../hooks/usePermissions'
 
 // Live Location Capture Component (embedded for DriverPortal)
 function LiveLocationCapture({ onLocationCaptured }) {
@@ -168,6 +169,7 @@ function LiveLocationCapture({ onLocationCaptured }) {
 }
 
 export default function DriverPortal({ currentUser }) {
+  const { hasPermission } = usePermissions()
   const [driverInfo, setDriverInfo] = useState(null)
   const [myJobCards, setMyJobCards] = useState([])
   const [myFuelRecords, setMyFuelRecords] = useState([])
@@ -196,6 +198,23 @@ export default function DriverPortal({ currentUser }) {
   useEffect(() => {
     fetchDriverData()
   }, [])
+  
+  // Handle permission changes - redirect if current view is no longer accessible
+  useEffect(() => {
+    const viewPermissions = {
+      overview: 'dashboard',
+      jobs: 'job_cards',
+      fuel: 'fuel'
+    }
+    
+    const currentModule = viewPermissions[activeView]
+    if (currentModule && !hasPermission(currentModule, 'view')) {
+      // Find first available view
+      if (hasPermission('dashboard', 'view')) setActiveView('overview')
+      else if (hasPermission('job_cards', 'view')) setActiveView('jobs')
+      else if (hasPermission('fuel', 'view')) setActiveView('fuel')
+    }
+  }, [hasPermission, activeView])
 
   const fetchDriverData = async () => {
     try {
@@ -399,24 +418,30 @@ export default function DriverPortal({ currentUser }) {
       {/* View Toggle */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button 
-            className={`btn ${activeView === 'overview' ? 'btn-primary' : ''}`}
-            onClick={() => setActiveView('overview')}
-          >
-            📊 Overview
-          </button>
-          <button 
-            className={`btn ${activeView === 'jobs' ? 'btn-primary' : ''}`}
-            onClick={() => setActiveView('jobs')}
-          >
-            📋 My Jobs
-          </button>
-          <button 
-            className={`btn ${activeView === 'fuel' ? 'btn-primary' : ''}`}
-            onClick={() => setActiveView('fuel')}
-          >
-            ⛽ Fuel Records
-          </button>
+          {hasPermission('dashboard', 'view') && (
+            <button 
+              className={`btn ${activeView === 'overview' ? 'btn-primary' : ''}`}
+              onClick={() => setActiveView('overview')}
+            >
+              📊 Overview
+            </button>
+          )}
+          {hasPermission('job_cards', 'view') && (
+            <button 
+              className={`btn ${activeView === 'jobs' ? 'btn-primary' : ''}`}
+              onClick={() => setActiveView('jobs')}
+            >
+              📋 My Jobs
+            </button>
+          )}
+          {hasPermission('fuel', 'view') && (
+            <button 
+              className={`btn ${activeView === 'fuel' ? 'btn-primary' : ''}`}
+              onClick={() => setActiveView('fuel')}
+            >
+              ⛽ Fuel Records
+            </button>
+          )}
         </div>
       </div>
 
@@ -526,12 +551,14 @@ export default function DriverPortal({ currentUser }) {
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3>⛽ My Fuel Records</h3>
-              <button 
-                className="btn btn-success" 
-                onClick={() => setShowFuelForm(!showFuelForm)}
-              >
-                {showFuelForm ? 'Cancel' : '+ Add Fuel Entry'}
-              </button>
+              {hasPermission('fuel', 'create') && (
+                <button 
+                  className="btn btn-success" 
+                  onClick={() => setShowFuelForm(!showFuelForm)}
+                >
+                  {showFuelForm ? 'Cancel' : '+ Add Fuel Entry'}
+                </button>
+              )}
             </div>
 
             {showFuelForm && (

@@ -3,14 +3,23 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import pool from './db.js';
 import { supabase, supabaseAdmin } from './supabase-client.js';
+import { requirePermission, checkPermission } from './middleware/permissions.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // limit each IP to 10 requests per windowMs
+  message: { error: 'Too many attempts, please try again later' }
+});
 
 // Helper function to log activity
 async function logActivity(userId, action, entityType = null, entityId = null, details = null) {
@@ -57,11 +66,6 @@ const requireAdmin = async (req, res, next) => {
 // Test endpoint to check database connection
 app.get('/api/test', async (req, res) => {
   try {
-    console.log('Testing database connection...');
-    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-    console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
-    console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
-    
     // Test Supabase client connection - simple select
     const { data, error } = await supabase
       .from('trucks')
@@ -70,20 +74,12 @@ app.get('/api/test', async (req, res) => {
     
     if (error) throw error;
     
-    console.log('Supabase connection successful');
     res.json({ 
       success: true, 
       message: 'Supabase connected successfully',
-      method: 'supabase-client',
-      trucksFound: data.length,
-      env: {
-        DATABASE_URL: !!process.env.DATABASE_URL,
-        SUPABASE_URL: !!process.env.SUPABASE_URL,
-        SUPABASE_ANON_KEY: !!process.env.SUPABASE_ANON_KEY
-      }
+      trucksFound: data.length
     });
   } catch (err) {
-    console.error('Database connection failed:', err);
     res.status(500).json({ 
       success: false, 
       error: err.message,
@@ -93,7 +89,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // Auth endpoints
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { email, password, name, phone, role } = req.body;
   try {
     // Check if email already exists
@@ -149,7 +145,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     // Get user with password for comparison
@@ -302,9 +298,6 @@ app.post('/api/permissions/roles', async (req, res) => {
 // Trucks endpoints
 app.get('/api/trucks', async (req, res) => {
   try {
-    console.log('GET /api/trucks called');
-    console.log('Using Supabase client');
-    
     const { data, error } = await supabase
       .from('trucks')
       .select('*')
@@ -312,7 +305,6 @@ app.get('/api/trucks', async (req, res) => {
     
     if (error) throw error;
     
-    console.log('Found', data.length, 'trucks');
     res.json(data);
   } catch (err) {
     console.error('Error fetching trucks:', err);
@@ -1790,8 +1782,6 @@ app.post('/api/upload-document', async (req, res) => {
         const fileName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${fileExt}`;
         const filePath = `compliance-documents/${req.body.truck_id || 'general'}/${fileName}`;
         
-        console.log('Uploading file to Supabase Storage:', filePath);
-        
         // Upload to Supabase Storage using admin client for better permissions
         const { data, error } = await supabaseAdmin.storage
           .from('documents')
@@ -1805,14 +1795,10 @@ app.post('/api/upload-document', async (req, res) => {
           throw new Error(`Storage upload failed: ${error.message || JSON.stringify(error)}`);
         }
         
-        console.log('File uploaded successfully:', data);
-        
         // Get public URL using regular client
         const { data: urlData } = supabase.storage
           .from('documents')
           .getPublicUrl(filePath);
-        
-        console.log('Public URL generated:', urlData.publicUrl);
         
         // Return file info
         res.json({
@@ -2486,7 +2472,7 @@ app.get('/api/fuel/by-truck', async (req, res) => {
   }
 });
 
-// Create fuel record
+// Create fuel record (requires fuel:create permission)
 app.post('/api/fuel', async (req, res) => {
   const { 
     truck_id, driver_id, job_card_id, fuel_date, quantity_liters, 
@@ -2495,6 +2481,12 @@ app.post('/api/fuel', async (req, res) => {
     gps_coordinates, gps_accuracy, gps_timestamp
   } = req.body;
   const userId = req.headers['x-user-id'];
+  
+  // Check permission
+  const hasPermission = await checkPermission(userId, 'fuel', 'create');
+  if (!hasPermission) {
+    return res.status(403).json({ error: 'Permission denied: fuel:create required' });
+  }
   
   try {
     const total_cost = parseFloat(quantity_liters) * parseFloat(cost_per_liter);

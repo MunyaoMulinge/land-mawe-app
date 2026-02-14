@@ -7,34 +7,59 @@ export function PermissionsProvider({ children, currentUser }) {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchPermissions = async () => {
     if (!currentUser) {
       setPermissions([]);
       setLoading(false);
       return;
     }
-
-    const fetchPermissions = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/permissions`, {
-          headers: { 'x-user-id': currentUser.id }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setPermissions(data.permissions);
-        }
-      } catch (err) {
-        console.error('Error fetching permissions:', err);
-      } finally {
-        setLoading(false);
+    
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/auth/permissions`, {
+        headers: { 'x-user-id': currentUser.id }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPermissions(data.permissions);
       }
-    };
+    } catch (err) {
+      console.error('Error fetching permissions:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchPermissions();
   }, [currentUser]);
+  
+  // Refresh permissions when window gains focus (for cross-tab updates)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (currentUser) {
+        fetchPermissions();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [currentUser]);
+
+  // Permission aliases for backwards compatibility
+  const permissionAliases = {
+    'fuel:create': ['fuel:record'] // fuel:create is equivalent to fuel:record
+  };
 
   const hasPermission = useCallback((module, action) => {
-    return permissions.includes(`${module}:${action}`);
+    const permissionKey = `${module}:${action}`;
+    
+    // Check exact permission
+    if (permissions.includes(permissionKey)) return true;
+    
+    // Check aliases (e.g., fuel:create -> fuel:record)
+    const aliases = permissionAliases[permissionKey] || [];
+    return aliases.some(alias => permissions.includes(alias));
   }, [permissions]);
 
   const hasAnyPermission = useCallback((perms) => {
@@ -51,6 +76,7 @@ export function PermissionsProvider({ children, currentUser }) {
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,
+    refreshPermissions: fetchPermissions,
     isSuperAdmin: currentUser?.role === 'superadmin'
   };
 
