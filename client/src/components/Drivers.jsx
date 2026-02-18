@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
+import { usePermissions } from '../hooks/usePermissions'
 import AnimatedModal from './AnimatedModal'
 import AnimatedLoader from './AnimatedLoader'
 import FormikField from './FormikField'
@@ -17,6 +18,7 @@ const checklistItems = [
 ]
 
 export default function Drivers() {
+  const { hasPermission } = usePermissions()
   const [drivers, setDrivers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -188,10 +190,12 @@ export default function Drivers() {
                   </span>
                 </td>
                 <td>
-                  <button className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-                    onClick={() => setSelectedDriver(selectedDriver?.id === driver.id ? null : driver)}>
-                    {selectedDriver?.id === driver.id ? 'Hide' : 'Checklist'}
-                  </button>
+                  {hasPermission('users', 'edit') && (
+                    <button className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                      onClick={() => setSelectedDriver(selectedDriver?.id === driver.id ? null : driver)}>
+                      {selectedDriver?.id === driver.id ? 'Hide' : 'Checklist'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -199,7 +203,7 @@ export default function Drivers() {
         </table>
       </div>
 
-      {selectedDriver && (
+      {selectedDriver && hasPermission('users', 'edit') && (
         <div className="card">
           <h2>Onboarding Checklist - {selectedDriver.name}</h2>
           <ul className="checklist">
@@ -209,6 +213,7 @@ export default function Drivers() {
                   type="checkbox"
                   checked={selectedDriver[item.key] || false}
                   onChange={() => toggleChecklist(selectedDriver.id, item.key, selectedDriver[item.key])}
+                  disabled={!hasPermission('users', 'edit')}
                 />
                 <span>{item.label}</span>
               </li>
