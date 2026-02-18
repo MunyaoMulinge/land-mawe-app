@@ -57,12 +57,23 @@ export default function Drivers() {
     }
   }
 
-  const toggleChecklist = (driverId, field, currentValue) => {
-    fetch(`${API}/drivers/${driverId}/checklist`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field, value: !currentValue })
-    }).then(() => fetchDrivers())
+  const toggleChecklist = async (driverId, field, currentValue) => {
+    try {
+      await fetch(`${API}/drivers/${driverId}/checklist`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value: !currentValue })
+      })
+      // Refresh drivers list
+      await fetchDrivers()
+      // Update selected driver to reflect changes in modal
+      const updatedDriver = drivers.find(d => d.id === driverId)
+      if (updatedDriver) {
+        setSelectedDriver({ ...updatedDriver, [field]: !currentValue })
+      }
+    } catch (err) {
+      console.error('Error updating checklist:', err)
+    }
   }
 
   const handleCreateDriverAccount = async (values, { setSubmitting }) => {
@@ -228,7 +239,14 @@ export default function Drivers() {
                     checked={selectedDriver[item.key] || false}
                     onChange={() => toggleChecklist(selectedDriver.id, item.key, selectedDriver[item.key])}
                     disabled={!hasPermission('users', 'edit')}
-                    style={{ marginRight: '0.75rem', width: '20px', height: '20px', cursor: 'pointer' }}
+                    style={{ 
+                      marginRight: '0.75rem', 
+                      width: '24px', 
+                      height: '24px', 
+                      cursor: hasPermission('users', 'edit') ? 'pointer' : 'not-allowed',
+                      accentColor: '#007bff',
+                      transform: 'scale(1.2)'
+                    }}
                   />
                   <label htmlFor={`checklist-${item.key}`} style={{ cursor: 'pointer', fontSize: '1rem' }}>
                     {item.label}
