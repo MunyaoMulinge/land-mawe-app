@@ -737,6 +737,34 @@ app.post('/api/users', async (req, res) => {
     
     if (error) throw error;
     
+    // If user is a driver, auto-create driver record
+    if (role === 'driver') {
+      try {
+        const { data: driverData, error: driverError } = await supabase
+          .from('drivers')
+          .insert([{ 
+            name: name,
+            phone: phone,
+            license_number: 'PENDING', // Placeholder - admin can update later
+            user_id: newUser.id
+          }])
+          .select()
+          .single();
+        
+        if (driverError) {
+          console.error('Error creating driver record:', driverError);
+        } else {
+          // Create onboarding checklist for the driver
+          await supabase
+            .from('onboarding_checklist')
+            .insert([{ driver_id: driverData.id }]);
+        }
+      } catch (driverErr) {
+        console.error('Error in driver auto-creation:', driverErr);
+        // Don't fail the user creation if driver record fails
+      }
+    }
+    
     // Log activity
     await logActivity(adminId, 'USER_CREATED', 'user', newUser.id, { email, role: newUser.role });
     
