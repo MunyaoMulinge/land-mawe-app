@@ -195,8 +195,23 @@ export default function ActivityLogs({ currentUser }) {
                       textAlign: "right",
                     }}
                   >
-                    <div>{new Date(log.created_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Nairobi', day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
-                    <div>{new Date(log.created_at).toLocaleTimeString('en-KE', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit' })}</div>
+                    {(() => {
+                      // Convert UTC timestamp to Kenya time (UTC+3)
+                      const utcDate = new Date(log.created_at);
+                      const kenyaOffset = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+                      const kenyaDate = new Date(utcDate.getTime() + kenyaOffset);
+                      const day = String(kenyaDate.getUTCDate()).padStart(2, '0');
+                      const month = String(kenyaDate.getUTCMonth() + 1).padStart(2, '0');
+                      const year = kenyaDate.getUTCFullYear();
+                      const hours = String(kenyaDate.getUTCHours()).padStart(2, '0');
+                      const minutes = String(kenyaDate.getUTCMinutes()).padStart(2, '0');
+                      return (
+                        <>
+                          <div>{`${day}-${month}-${year}`}</div>
+                          <div>{`${hours}:${minutes}`}</div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
