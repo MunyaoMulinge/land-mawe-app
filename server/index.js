@@ -24,15 +24,26 @@ const authLimiter = rateLimit({
 // Helper function to log activity
 async function logActivity(userId, action, entityType = null, entityId = null, details = null) {
   try {
-    await supabase
+    const insertData = {
+      user_id: userId,
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      created_at: new Date().toISOString() // Explicitly set UTC timestamp
+    };
+    
+    // Only add details if provided
+    if (details) {
+      insertData.details = details;
+    }
+    
+    const { error } = await supabase
       .from('activity_logs')
-      .insert([{
-        user_id: userId,
-        action,
-        entity_type: entityType,
-        entity_id: entityId,
-        details
-      }]);
+      .insert([insertData]);
+    
+    if (error) {
+      console.error('Supabase error logging activity:', error);
+    }
   } catch (err) {
     console.error('Failed to log activity:', err);
   }
