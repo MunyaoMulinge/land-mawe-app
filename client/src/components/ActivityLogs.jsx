@@ -195,7 +195,7 @@ export default function ActivityLogs({ currentUser }) {
                       textAlign: "right",
                     }}
                   >
-                    <div>{new Date(log.created_at).toLocaleDateString('en-KE', { timeZone: 'Africa/Nairobi' })}</div>
+                    <div>{new Date(log.created_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Nairobi', day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
                     <div>{new Date(log.created_at).toLocaleTimeString('en-KE', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                 </div>
