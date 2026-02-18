@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
 import { usePermissions } from '../hooks/usePermissions'
@@ -24,14 +24,6 @@ export default function Drivers() {
   const [showForm, setShowForm] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [showLinkModal, setShowLinkModal] = useState(null)
-  const checklistRef = useRef(null)
-
-  // Auto-scroll to checklist when opened
-  useEffect(() => {
-    if (selectedDriver && checklistRef.current) {
-      checklistRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [selectedDriver])
 
   const fetchDrivers = () => {
     fetch(`${API}/drivers`)
@@ -200,8 +192,8 @@ export default function Drivers() {
                 <td>
                   {hasPermission('users', 'edit') && (
                     <button className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-                      onClick={() => setSelectedDriver(selectedDriver?.id === driver.id ? null : driver)}>
-                      {selectedDriver?.id === driver.id ? 'Hide' : 'Checklist'}
+                      onClick={() => setSelectedDriver(driver)}>
+                      Checklist
                     </button>
                   )}
                 </td>
@@ -211,24 +203,50 @@ export default function Drivers() {
         </table>
       </div>
 
-      {selectedDriver && hasPermission('users', 'edit') && (
-        <div ref={checklistRef} className="card">
-          <h2>Onboarding Checklist - {selectedDriver.name}</h2>
-          <ul className="checklist">
-            {checklistItems.map(item => (
-              <li key={item.key}>
-                <input
-                  type="checkbox"
-                  checked={selectedDriver[item.key] || false}
-                  onChange={() => toggleChecklist(selectedDriver.id, item.key, selectedDriver[item.key])}
-                  disabled={!hasPermission('users', 'edit')}
-                />
-                <span>{item.label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Checklist Modal */}
+      <AnimatedModal
+        isOpen={!!selectedDriver}
+        onClose={() => setSelectedDriver(null)}
+        title={selectedDriver ? `Onboarding Checklist - ${selectedDriver.name}` : 'Onboarding Checklist'}
+      >
+        {selectedDriver && (
+          <div>
+            <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+              Driver: <strong>{selectedDriver.name}</strong> | License: {selectedDriver.license_number}
+            </p>
+            <ul className="checklist" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {checklistItems.map(item => (
+                <li key={item.key} style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  padding: '0.75rem 0',
+                  borderBottom: '1px solid var(--border-color)'
+                }}>
+                  <input
+                    type="checkbox"
+                    id={`checklist-${item.key}`}
+                    checked={selectedDriver[item.key] || false}
+                    onChange={() => toggleChecklist(selectedDriver.id, item.key, selectedDriver[item.key])}
+                    disabled={!hasPermission('users', 'edit')}
+                    style={{ marginRight: '0.75rem', width: '20px', height: '20px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor={`checklist-${item.key}`} style={{ cursor: 'pointer', fontSize: '1rem' }}>
+                    {item.label}
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setSelectedDriver(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </AnimatedModal>
 
       {/* Create Driver Account Modal */}
       <AnimatedModal
