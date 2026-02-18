@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
 import { usePermissions } from '../hooks/usePermissions'
@@ -24,6 +24,14 @@ export default function Drivers() {
   const [showForm, setShowForm] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [showLinkModal, setShowLinkModal] = useState(null)
+  const checklistRef = useRef(null)
+
+  // Auto-scroll to checklist when opened
+  useEffect(() => {
+    if (selectedDriver && checklistRef.current) {
+      checklistRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [selectedDriver])
 
   const fetchDrivers = () => {
     fetch(`${API}/drivers`)
@@ -204,7 +212,7 @@ export default function Drivers() {
       </div>
 
       {selectedDriver && hasPermission('users', 'edit') && (
-        <div className="card">
+        <div ref={checklistRef} className="card">
           <h2>Onboarding Checklist - {selectedDriver.name}</h2>
           <ul className="checklist">
             {checklistItems.map(item => (
