@@ -1093,7 +1093,8 @@ app.get('/api/job-cards/:id', async (req, res) => {
         drivers(name, phone),
         creator:created_by(name),
         approver:approved_by(name),
-        job_card_checklist(*)
+        job_card_checklist(*),
+        job_card_equipment(*)
       `)
       .eq('id', req.params.id)
       .single();
@@ -1108,7 +1109,8 @@ app.get('/api/job-cards/:id', async (req, res) => {
       driver_phone: data.drivers?.phone,
       created_by_name: data.creator?.name,
       approved_by_name: data.approver?.name,
-      checklist: data.job_card_checklist?.[0] || null
+      checklist: data.job_card_checklist?.[0] || null,
+      equipment: data.job_card_equipment || []
     };
     
     res.json(transformed);
@@ -1131,6 +1133,11 @@ app.post('/api/job-cards', async (req, res) => {
   } = req.body;
   const userId = req.headers['x-user-id'];
   
+  // Helper to convert empty strings to null for integer/date fields
+  const toInt = (val) => val && val !== '' ? parseInt(val) : null;
+  const toFloat = (val) => val && val !== '' ? parseFloat(val) : null;
+  const toDateOrNull = (val) => val && val !== '' ? val : null;
+  
   try {
     // Generate job number
     const jobNumber = 'JC-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Date.now().toString().slice(-4);
@@ -1139,30 +1146,28 @@ app.post('/api/job-cards', async (req, res) => {
     const { data: jobCard, error: jobError } = await supabase
       .from('job_cards')
       .insert([{
-        truck_id,
-        driver_id,
-        booking_id,
-        created_by: userId,
+        truck_id: toInt(truck_id),
+        driver_id: toInt(driver_id),
+        booking_id: toInt(booking_id),
+        created_by: toInt(userId),
         job_number: jobNumber,
-        // New fields
-        client_name,
-        event_start_date,
-        event_finish_date,
+        client_name: client_name || null,
+        event_start_date: toDateOrNull(event_start_date),
+        event_finish_date: toDateOrNull(event_finish_date),
         branding_in_house: branding_in_house || false,
-        crew,
-        team_lead,
-        route: notes,
-        merchandise,
-        vehicle_reg,
-        kilometer: kilometer ? parseInt(kilometer) : null,
-        fuel_gauge,
-        current_average: current_average ? parseFloat(current_average) : null,
-        damage_report,
-        // Legacy fields
-        departure_date: departure_date || event_start_date || job_date,
-        destination: destination || client_name,
-        purpose,
-        notes,
+        crew: crew || null,
+        team_lead: team_lead || null,
+        route: notes || null,
+        merchandise: merchandise || null,
+        vehicle_reg: vehicle_reg || null,
+        kilometer: toInt(kilometer),
+        fuel_gauge: fuel_gauge || null,
+        current_average: toFloat(current_average),
+        damage_report: damage_report || null,
+        departure_date: toDateOrNull(departure_date) || toDateOrNull(event_start_date) || toDateOrNull(job_date),
+        destination: destination || client_name || null,
+        purpose: purpose || null,
+        notes: notes || null,
         status: 'draft'
       }])
       .select()
@@ -1200,6 +1205,94 @@ app.post('/api/job-cards', async (req, res) => {
     res.json(jobCard);
   } catch (err) {
     console.error('Error creating job card:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Edit job card
+app.patch('/api/job-cards/:id', async (req, res) => {
+  const { 
+    truck_id, driver_id, booking_id,
+    purpose, client_name, event_start_date, event_finish_date, branding_in_house,
+    crew, team_lead, notes, merchandise,
+    vehicle_reg, kilometer, fuel_gauge, current_average,
+    equipment, damage_report
+  } = req.body;
+  const userId = req.headers['x-user-id'];
+
+  const toInt = (val) => val && val !== '' ? parseInt(val) : null;
+  const toFloat = (val) => val && val !== '' ? parseFloat(val) : null;
+  const toDateOrNull = (val) => val && val !== '' ? val : null;
+
+  try {
+    // Only allow editing draft/pending job cards
+    const { data: existing, error: fetchErr } = await supabase
+      .from('job_cards')
+      .select('status')
+      .eq('id', req.params.id)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+    if (!['draft', 'pending_approval'].includes(existing.status)) {
+      return res.status(400).json({ error: 'Can only edit draft or pending job cards' });
+    }
+
+    const updateData = {
+      truck_id: toInt(truck_id),
+      driver_id: toInt(driver_id),
+      booking_id: toInt(booking_id),
+      client_name: client_name || null,
+      event_start_date: toDateOrNull(event_start_date),
+      event_finish_date: toDateOrNull(event_finish_date),
+      branding_in_house: branding_in_house || false,
+      crew: crew || null,
+      team_lead: team_lead || null,
+      route: notes || null,
+      merchandise: merchandise || null,
+      vehicle_reg: vehicle_reg || null,
+      kilometer: toInt(kilometer),
+      fuel_gauge: fuel_gauge || null,
+      current_average: toFloat(current_average),
+      damage_report: damage_report || null,
+      departure_date: toDateOrNull(event_start_date),
+      destination: client_name || null,
+      purpose: purpose || null,
+      notes: notes || null
+    };
+
+    const { data: jobCard, error: updateErr } = await supabase
+      .from('job_cards')
+      .update(updateData)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    // Update equipment if provided
+    if (equipment) {
+      // Delete old equipment
+      await supabase.from('job_card_equipment').delete().eq('job_card_id', jobCard.id);
+
+      // Insert new
+      const activeEquipment = equipment.filter(eq => eq.quantity > 0);
+      if (activeEquipment.length > 0) {
+        await supabase.from('job_card_equipment').insert(
+          activeEquipment.map(eq => ({
+            job_card_id: jobCard.id,
+            equipment_name: eq.name,
+            equipment_type: eq.type || null,
+            quantity: eq.quantity || 0,
+            returned: eq.returned || false
+          }))
+        );
+      }
+    }
+
+    await logActivity(userId, 'JOB_CARD_UPDATED', 'job_card', jobCard.id, { job_number: jobCard.job_number });
+    res.json(jobCard);
+  } catch (err) {
+    console.error('Error updating job card:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -18,7 +18,10 @@ export default function JobCards({ currentUser }) {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingJobCard, setEditingJobCard] = useState(null)
   const [selectedJobCard, setSelectedJobCard] = useState(null)
+  const [checklist, setChecklist] = useState(null)
+  const [savingChecklist, setSavingChecklist] = useState(false)
   const [filter, setFilter] = useState({ status: '' })
   const { hasPermission } = usePermissions()
   
@@ -101,8 +104,13 @@ export default function JobCards({ currentUser }) {
       // Filter out equipment with 0 quantity
       const activeEquipment = values.equipment.filter(eq => eq.quantity > 0)
       
-      const res = await fetch(`${API_BASE}/job-cards`, {
-        method: 'POST',
+      const url = editingJobCard 
+        ? `${API_BASE}/job-cards/${editingJobCard.id}`
+        : `${API_BASE}/job-cards`
+      const method = editingJobCard ? 'PATCH' : 'POST'
+      
+      const res = await fetch(url, {
+        method,
         headers: { 
           'Content-Type': 'application/json',
           'x-user-id': currentUser?.id
@@ -112,15 +120,80 @@ export default function JobCards({ currentUser }) {
           equipment: activeEquipment
         })
       })
-      if (!res.ok) throw new Error('Failed to create job card')
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to save job card')
+      }
       
       resetForm()
       setShowForm(false)
+      setEditingJobCard(null)
       fetchJobCards()
     } catch (err) {
       alert('Error: ' + err.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const startEdit = async (job) => {
+    try {
+      const res = await fetch(`${API_BASE}/job-cards/${job.id}`, {
+        headers: { 'x-user-id': currentUser?.id }
+      })
+      const data = await res.json()
+      
+      // Map saved equipment back to the full equipment list
+      const mappedEquipment = EQUIPMENT_TYPES.map(name => {
+        const saved = (data.equipment || []).find(eq => eq.equipment_name === name)
+        return {
+          name,
+          type: saved?.equipment_type || '',
+          quantity: saved?.quantity || 0,
+          returned: saved?.returned || false
+        }
+      })
+
+      setEditingJobCard({ ...data, mappedEquipment })
+      setShowForm(true)
+    } catch (err) {
+      alert('Error loading job card: ' + err.message)
+    }
+  }
+
+  const getEditValues = () => {
+    if (!editingJobCard) return initialValues
+    return {
+      booking_id: editingJobCard.booking_id || '',
+      job_date: editingJobCard.departure_date?.slice(0, 10) || new Date().toISOString().split('T')[0],
+      purpose: editingJobCard.purpose || '',
+      client_name: editingJobCard.client_name || '',
+      event_start_date: editingJobCard.event_start_date?.slice(0, 10) || '',
+      event_finish_date: editingJobCard.event_finish_date?.slice(0, 10) || '',
+      branding_in_house: editingJobCard.branding_in_house || false,
+      driver_id: editingJobCard.driver_id ? String(editingJobCard.driver_id) : '',
+      crew: editingJobCard.crew || '',
+      team_lead: editingJobCard.team_lead || '',
+      notes: editingJobCard.route || editingJobCard.notes || '',
+      merchandise: editingJobCard.merchandise || '',
+      truck_id: editingJobCard.truck_id ? String(editingJobCard.truck_id) : '',
+      vehicle_reg: editingJobCard.vehicle_reg || '',
+      kilometer: editingJobCard.kilometer || '',
+      fuel_gauge: editingJobCard.fuel_gauge || 'full',
+      current_average: editingJobCard.current_average || '',
+      equipment: (() => {
+        const equipmentMap = {}
+        if (editingJobCard.equipment) {
+          editingJobCard.equipment.forEach(eq => { equipmentMap[eq.equipment_name] = eq })
+        }
+        return EQUIPMENT_TYPES.map(name => ({
+          name,
+          type: equipmentMap[name]?.equipment_type || '',
+          quantity: equipmentMap[name]?.quantity || 0,
+          returned: equipmentMap[name]?.returned || false
+        }))
+      })(),
+      damage_report: editingJobCard.damage_report || ''
     }
   }
 
@@ -139,6 +212,63 @@ export default function JobCards({ currentUser }) {
         {status.replace('_', ' ').toUpperCase()}
       </span>
     )
+  }
+
+  const updateJobCardStatus = async (jobId, action) => {
+    try {
+      const res = await fetch(`${API_BASE}/job-cards/${jobId}/${action}`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id 
+        }
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to update status')
+      }
+      setSelectedJobCard(null)
+      setChecklist(null)
+      fetchJobCards()
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
+  }
+
+  const openJobCard = async (job) => {
+    setSelectedJobCard(job)
+    // Load checklist
+    try {
+      const res = await fetch(`${API_BASE}/job-cards/${job.id}`, {
+        headers: { 'x-user-id': currentUser?.id }
+      })
+      const data = await res.json()
+      setChecklist(data.checklist || {})
+    } catch (err) {
+      console.error('Error loading checklist:', err)
+      setChecklist({})
+    }
+  }
+
+  const saveChecklist = async (updates) => {
+    if (!selectedJobCard) return
+    setSavingChecklist(true)
+    const newChecklist = { ...checklist, ...updates }
+    setChecklist(newChecklist)
+    try {
+      await fetch(`${API_BASE}/job-cards/${selectedJobCard.id}/checklist`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id 
+        },
+        body: JSON.stringify(updates)
+      })
+    } catch (err) {
+      console.error('Error saving checklist:', err)
+    } finally {
+      setSavingChecklist(false)
+    }
   }
 
   if (loading) return <div className="loading">Loading job cards...</div>
@@ -163,8 +293,11 @@ export default function JobCards({ currentUser }) {
               <option value="completed">Completed</option>
             </select>
             {hasPermission('job_cards', 'create') && (
-              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                {showForm ? 'Cancel' : '+ New Job Card'}
+              <button className="btn btn-primary" onClick={() => {
+                setEditingJobCard(null)
+                setShowForm(!showForm)
+              }}>
+                {showForm && !editingJobCard ? 'Cancel' : '+ New Job Card'}
               </button>
             )}
           </div>
@@ -172,17 +305,25 @@ export default function JobCards({ currentUser }) {
       </div>
 
       {/* Form */}
-      {showForm && hasPermission('job_cards', 'create') && (
+      {showForm && (hasPermission('job_cards', 'create') || editingJobCard) && (
         <Formik
-          initialValues={initialValues}
+          initialValues={getEditValues()}
           validationSchema={jobCardSchema}
           validateOnChange={true}
           validateOnBlur={true}
+          enableReinitialize={true}
           onSubmit={handleSubmit}
         >
           {({ values, setFieldValue, isSubmitting }) => (
             <Form className="card">
-              <h3 style={{ marginBottom: '1rem' }}>Create New Job Card</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3>{editingJobCard ? `Edit Job Card: ${editingJobCard.job_number}` : 'Create New Job Card'}</h3>
+                {editingJobCard && (
+                  <button type="button" className="btn" onClick={() => { setShowForm(false); setEditingJobCard(null) }}>
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
               
               {/* Booking Selector */}
               {bookings.length > 0 && (
@@ -452,7 +593,7 @@ export default function JobCards({ currentUser }) {
               </div>
 
               <button type="submit" className="btn btn-success" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating...' : '💾 Create Job Card'}
+                {isSubmitting ? 'Saving...' : editingJobCard ? '💾 Update Job Card' : '💾 Create Job Card'}
               </button>
             </Form>
           )}
@@ -495,12 +636,22 @@ export default function JobCards({ currentUser }) {
                   </td>
                   <td>{getStatusBadge(job.status)}</td>
                   <td>
-                    <button 
-                      className="btn btn-small btn-primary"
-                      onClick={() => setSelectedJobCard(job)}
-                    >
-                      View
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      <button 
+                        className="btn btn-small btn-primary"
+                        onClick={() => openJobCard(job)}
+                      >
+                        View
+                      </button>
+                      {hasPermission('job_cards', 'edit') && ['draft', 'pending_approval'].includes(job.status) && (
+                        <button 
+                          className="btn btn-small"
+                          onClick={() => startEdit(job)}
+                        >
+                          ✏️ Edit
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -510,7 +661,7 @@ export default function JobCards({ currentUser }) {
       </div>
 
       {/* View Modal */}
-      <AnimatedModal isOpen={!!selectedJobCard} onClose={() => setSelectedJobCard(null)} title={`Job Card: ${selectedJobCard?.job_number || ''}`}>
+      <AnimatedModal isOpen={!!selectedJobCard} onClose={() => { setSelectedJobCard(null); setChecklist(null) }} title={`Job Card: ${selectedJobCard?.job_number || ''}`}>
         {selectedJobCard && (
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
@@ -533,8 +684,160 @@ export default function JobCards({ currentUser }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn" onClick={() => setSelectedJobCard(null)}>Close</button>
+            {/* Pre-Departure Safety Checklist */}
+            {checklist && selectedJobCard.status === 'draft' && (
+              <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                <h4 style={{ marginBottom: '1rem' }}>🔍 Pre-Departure Safety Checklist</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                  Complete all required checks (marked with *) before submitting for approval.
+                </p>
+
+                {/* Safety Equipment */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <strong style={{ display: 'block', marginBottom: '0.5rem' }}>🛡️ Safety Equipment</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    {[
+                      { key: 'fire_extinguisher', label: 'Fire Extinguisher *' },
+                      { key: 'first_aid_kit', label: 'First Aid Kit *' },
+                      { key: 'warning_triangles', label: 'Warning Triangles *' },
+                      { key: 'reflective_jacket', label: 'Reflective Jacket' },
+                      { key: 'spare_wheel', label: 'Spare Wheel' },
+                      { key: 'jack_and_tools', label: 'Jack & Tools' }
+                    ].map(item => (
+                      <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={checklist[item.key] || false}
+                          onChange={e => saveChecklist({ [item.key]: e.target.checked })}
+                          style={{ width: 'auto' }}
+                        />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Vehicle Condition */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <strong style={{ display: 'block', marginBottom: '0.5rem' }}>🚛 Vehicle Condition</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={checklist.lights_working || false}
+                        onChange={e => saveChecklist({ lights_working: e.target.checked })}
+                        style={{ width: 'auto' }}
+                      />
+                      Lights Working *
+                    </label>
+                    <div>
+                      <label style={{ fontSize: '0.85rem' }}>Tires Condition *</label>
+                      <select
+                        value={checklist.tires_condition || 'not_checked'}
+                        onChange={e => saveChecklist({ tires_condition: e.target.value })}
+                        style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                      >
+                        <option value="not_checked">Not Checked</option>
+                        <option value="good">Good</option>
+                        <option value="fair">Fair</option>
+                        <option value="poor">Poor</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.85rem' }}>Brakes Condition *</label>
+                      <select
+                        value={checklist.brakes_condition || 'not_checked'}
+                        onChange={e => saveChecklist({ brakes_condition: e.target.value })}
+                        style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                      >
+                        <option value="not_checked">Not Checked</option>
+                        <option value="good">Good</option>
+                        <option value="fair">Fair</option>
+                        <option value="poor">Poor</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.85rem' }}>Fuel Level *</label>
+                      <select
+                        value={checklist.fuel_level || 'not_checked'}
+                        onChange={e => saveChecklist({ fuel_level: e.target.value })}
+                        style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                      >
+                        <option value="not_checked">Not Checked</option>
+                        <option value="full">Full</option>
+                        <option value="half">Half</option>
+                        <option value="quarter">Quarter</option>
+                        <option value="empty">Empty</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.85rem' }}>Oil Level</label>
+                      <select
+                        value={checklist.oil_level || 'not_checked'}
+                        onChange={e => saveChecklist({ oil_level: e.target.value })}
+                        style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                      >
+                        <option value="not_checked">Not Checked</option>
+                        <option value="full">Full</option>
+                        <option value="low">Low</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.85rem' }}>Coolant Level</label>
+                      <select
+                        value={checklist.coolant_level || 'not_checked'}
+                        onChange={e => saveChecklist({ coolant_level: e.target.value })}
+                        style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                      >
+                        <option value="not_checked">Not Checked</option>
+                        <option value="full">Full</option>
+                        <option value="low">Low</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inspection Notes */}
+                <div>
+                  <label style={{ fontSize: '0.85rem' }}>Inspection Notes</label>
+                  <textarea
+                    value={checklist.inspection_notes || ''}
+                    onChange={e => saveChecklist({ inspection_notes: e.target.value })}
+                    placeholder="Any additional inspection notes..."
+                    rows="2"
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', resize: 'vertical' }}
+                  />
+                </div>
+
+                {savingChecklist && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Saving...</p>}
+              </div>
+            )}
+
+            {/* Status Actions */}
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              {selectedJobCard.status === 'draft' && hasPermission('job_cards', 'edit') && (
+                <button className="btn btn-primary" onClick={() => updateJobCardStatus(selectedJobCard.id, 'submit')}>
+                  📤 Submit for Approval
+                </button>
+              )}
+              {selectedJobCard.status === 'pending_approval' && hasPermission('job_cards', 'approve') && (
+                <button className="btn btn-success" onClick={() => updateJobCardStatus(selectedJobCard.id, 'approve')}>
+                  ✅ Approve
+                </button>
+              )}
+              {selectedJobCard.status === 'approved' && hasPermission('job_cards', 'edit') && (
+                <button className="btn btn-primary" onClick={() => updateJobCardStatus(selectedJobCard.id, 'depart')}>
+                  🚛 Mark Departed
+                </button>
+              )}
+              {selectedJobCard.status === 'departed' && hasPermission('job_cards', 'edit') && (
+                <button className="btn btn-success" onClick={() => updateJobCardStatus(selectedJobCard.id, 'complete')}>
+                  ✔️ Mark Completed
+                </button>
+              )}
+              <button className="btn" onClick={() => { setSelectedJobCard(null); setChecklist(null) }}>Close</button>
             </div>
           </>
         )}
