@@ -208,13 +208,14 @@ export default function Invoices({ currentUser }) {
       doc.setFontSize(10)
       doc.setTextColor(60)
       doc.text(inv.clients?.name || 'N/A', 20, 82)
-      if (inv.clients?.address) doc.text(inv.clients.address, 20, 88)
-      if (inv.clients?.city) doc.text(inv.clients.city, 20, 94)
-      if (inv.clients?.email) doc.text(inv.clients.email, 20, 100)
-      if (inv.clients?.phone) doc.text(inv.clients.phone, 20, 106)
+      if (inv.clients?.tax_pin) doc.text(`KRA PIN: ${inv.clients.tax_pin}`, 20, 88)
+      if (inv.clients?.address) doc.text(inv.clients.address, 20, 94)
+      if (inv.clients?.city) doc.text(inv.clients.city, 20, 100)
+      if (inv.clients?.email) doc.text(inv.clients.email, 20, 106)
+      if (inv.clients?.phone) doc.text(inv.clients.phone, 20, 112)
       
       // Table header
-      let y = 120
+      let y = 126
       doc.setFillColor(44, 62, 80)
       doc.rect(20, y, pageWidth - 40, 10, 'F')
       doc.setTextColor(255)
@@ -596,9 +597,10 @@ export default function Invoices({ currentUser }) {
                       required
                     />
                     <FormikField
-                      label="KRA PIN"
+                      label="KRA PIN *"
                       name="tax_pin"
-                      placeholder="Tax PIN"
+                      placeholder="e.g. A123456789B"
+                      required
                     />
                   </div>
                   <div className="form-row">
@@ -633,6 +635,7 @@ export default function Invoices({ currentUser }) {
                 <th>Contact</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <th>KRA PIN</th>
                 <th>Type</th>
                 <th>Payment Terms</th>
                 <th>Status</th>
@@ -645,6 +648,7 @@ export default function Invoices({ currentUser }) {
                   <td>{client.contact_person || '-'}</td>
                   <td>{client.email || '-'}</td>
                   <td>{client.phone || '-'}</td>
+                  <td>{client.tax_pin || '-'}</td>
                   <td style={{ textTransform: 'capitalize' }}>{client.company_type || '-'}</td>
                   <td>{client.payment_terms} days</td>
                   <td>
@@ -733,6 +737,7 @@ export default function Invoices({ currentUser }) {
               <div>
                 <strong>Client:</strong><br />
                 {selectedInvoice.clients?.name}<br />
+                {selectedInvoice.clients?.tax_pin && <><strong>KRA PIN:</strong> {selectedInvoice.clients.tax_pin}<br /></>}
                 {selectedInvoice.clients?.email}<br />
                 {selectedInvoice.clients?.phone}
               </div>

@@ -154,6 +154,9 @@ export const clientSchema = Yup.object({
   phone: Yup.string()
     .matches(/^[0-9\-\+\s]+$/, 'Invalid phone number')
     .required('Phone is required'),
+  tax_pin: Yup.string()
+    .matches(/^[AP]\d{9}[A-Z]$/, 'Invalid KRA PIN format (e.g. A123456789B)')
+    .required('KRA PIN is required'),
   address: Yup.string()
     .nullable()
 });
