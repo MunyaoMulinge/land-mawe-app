@@ -2485,29 +2485,32 @@ app.post('/api/maintenance', async (req, res) => {
   } = req.body;
   const userId = req.headers['x-user-id'];
   
+  const toInt = (val) => val && val !== '' ? parseInt(val) : null;
+  const toFloat = (val) => val && val !== '' ? parseFloat(val) : 0;
+  
   try {
-    const total_cost = parseFloat(parts_cost || 0) + parseFloat(labor_cost || 0);
+    const total_cost = toFloat(parts_cost) + toFloat(labor_cost);
     
     const { data, error } = await supabase
       .from('maintenance_records')
       .insert([{
-        truck_id,
-        service_type_id,
-        service_date,
-        description,
-        mileage_at_service,
-        parts_cost: parts_cost || 0,
-        labor_cost: labor_cost || 0,
+        truck_id: toInt(truck_id),
+        service_type_id: toInt(service_type_id),
+        service_date: service_date || null,
+        description: description || null,
+        mileage_at_service: toInt(mileage_at_service),
+        parts_cost: toFloat(parts_cost),
+        labor_cost: toFloat(labor_cost),
         total_cost,
-        vendor_name,
-        vendor_contact,
-        invoice_number,
-        assigned_to,
-        next_service_km,
-        next_service_date,
-        notes,
+        vendor_name: vendor_name || null,
+        vendor_contact: vendor_contact || null,
+        invoice_number: invoice_number || null,
+        assigned_to: toInt(assigned_to),
+        next_service_km: toInt(next_service_km),
+        next_service_date: next_service_date || null,
+        notes: notes || null,
         status: status || 'scheduled',
-        created_by: userId
+        created_by: toInt(userId)
       }])
       .select()
       .single();

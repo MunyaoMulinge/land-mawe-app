@@ -72,7 +72,10 @@ export default function Maintenance({ currentUser }) {
         },
         body: JSON.stringify(form)
       })
-      if (!res.ok) throw new Error('Failed to create maintenance record')
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to create maintenance record')
+      }
       
       resetForm()
       setShowForm(false)
@@ -167,13 +170,23 @@ export default function Maintenance({ currentUser }) {
 
   const handleServiceTypeChange = (typeId) => {
     const type = serviceTypes.find(t => t.id === parseInt(typeId))
-    setForm({
-      ...form,
-      service_type_id: typeId,
-      description: type?.name || '',
-      parts_cost: type?.estimated_cost ? (type.estimated_cost * 0.6).toFixed(0) : '',
-      labor_cost: type?.estimated_cost ? (type.estimated_cost * 0.4).toFixed(0) : ''
-    })
+    if (type?.name === 'Other') {
+      setForm({
+        ...form,
+        service_type_id: typeId,
+        description: '',
+        parts_cost: '',
+        labor_cost: ''
+      })
+    } else {
+      setForm({
+        ...form,
+        service_type_id: typeId,
+        description: type?.name || '',
+        parts_cost: type?.estimated_cost ? (type.estimated_cost * 0.6).toFixed(0) : '',
+        labor_cost: type?.estimated_cost ? (type.estimated_cost * 0.4).toFixed(0) : ''
+      })
+    }
   }
 
   if (loading) return <div className="loading">Loading maintenance data...</div>
