@@ -173,6 +173,7 @@ export default function DriverPortal({ currentUser }) {
   const [driverInfo, setDriverInfo] = useState(null)
   const [myJobCards, setMyJobCards] = useState([])
   const [myFuelRecords, setMyFuelRecords] = useState([])
+  const [myBookings, setMyBookings] = useState([])
   const [trucks, setTrucks] = useState([])
   const [stats, setStats] = useState({ total_jobs: 0, completed: 0, active: 0 })
   const [loading, setLoading] = useState(true)
@@ -238,6 +239,11 @@ export default function DriverPortal({ currentUser }) {
       const fuelRes = await fetch(`${API_BASE}/fuel?driver_id=${driver.id}`)
       const fuel = await fuelRes.json()
       setMyFuelRecords(fuel)
+
+      // Get driver's bookings
+      const bookingsRes = await fetch(`${API_BASE}/bookings?driver_id=${driver.id}`)
+      const bookings = await bookingsRes.json()
+      setMyBookings(bookings)
 
       // Get trucks for fuel form
       const trucksRes = await fetch(`${API_BASE}/trucks`)
@@ -440,6 +446,14 @@ export default function DriverPortal({ currentUser }) {
               onClick={() => setActiveView('fuel')}
             >
               ⛽ Fuel Records
+            </button>
+          )}
+          {hasPermission('bookings', 'view') && (
+            <button 
+              className={`btn ${activeView === 'bookings' ? 'btn-primary' : ''}`}
+              onClick={() => setActiveView('bookings')}
+            >
+              📅 My Bookings
             </button>
           )}
         </div>
@@ -745,6 +759,41 @@ export default function DriverPortal({ currentUser }) {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* My Bookings */}
+      {activeView === 'bookings' && (
+        <div className="card">
+          <h3 style={{ marginBottom: '1rem' }}>📅 My Bookings</h3>
+          {myBookings.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary)' }}>No bookings assigned to you yet.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Location</th>
+                  <th>Truck</th>
+                  <th>Start Date</th>
+                  <th>End Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {myBookings.map(b => (
+                  <tr key={b.id}>
+                    <td><strong>{b.event_name}</strong></td>
+                    <td>{b.location || '-'}</td>
+                    <td>{b.plate_number} ({b.model})</td>
+                    <td>{formatDate(b.start_date)}</td>
+                    <td>{formatDate(b.end_date)}</td>
+                    <td><span className={`badge ${b.status}`}>{b.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </div>

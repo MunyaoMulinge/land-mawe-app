@@ -15,6 +15,7 @@ export default function JobCards({ currentUser }) {
   const [jobCards, setJobCards] = useState([])
   const [trucks, setTrucks] = useState([])
   const [drivers, setDrivers] = useState([])
+  const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [selectedJobCard, setSelectedJobCard] = useState(null)
@@ -22,6 +23,8 @@ export default function JobCards({ currentUser }) {
   const { hasPermission } = usePermissions()
   
   const initialValues = {
+    // Booking reference
+    booking_id: '',
     // Basic Info
     job_date: new Date().toISOString().split('T')[0],
     purpose: '', // Job Description
@@ -73,12 +76,16 @@ export default function JobCards({ currentUser }) {
 
   const fetchTrucksAndDrivers = async () => {
     try {
-      const [trucksRes, driversRes] = await Promise.all([
+      const [trucksRes, driversRes, bookingsRes] = await Promise.all([
         fetch(`${API_BASE}/trucks`),
-        fetch(`${API_BASE}/drivers`)
+        fetch(`${API_BASE}/drivers`),
+        fetch(`${API_BASE}/bookings`)
       ])
       setTrucks(await trucksRes.json())
       setDrivers(await driversRes.json())
+      const allBookings = await bookingsRes.json()
+      // Only show confirmed bookings that don't already have a job card
+      setBookings(allBookings.filter(b => b.status === 'confirmed'))
     } catch (err) {
       console.error('Error fetching trucks/drivers:', err)
     }
@@ -177,6 +184,52 @@ export default function JobCards({ currentUser }) {
             <Form className="card">
               <h3 style={{ marginBottom: '1rem' }}>Create New Job Card</h3>
               
+              {/* Booking Selector */}
+              {bookings.length > 0 && (
+                <div style={{ background: '#e8f4fd', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #b8daff' }}>
+                  <h4 style={{ marginBottom: '0.75rem' }}>📅 Pre-fill from Booking (optional)</h4>
+                  <div className="form-group">
+                    <label>Select a Booking</label>
+                    <select
+                      value={values.booking_id || ''}
+                      onChange={e => {
+                        const bookingId = e.target.value
+                        if (!bookingId) {
+                          // Clear booking-related fields when "No booking" is selected
+                          setFieldValue('booking_id', '')
+                          return
+                        }
+                        
+                        const booking = bookings.find(b => b.id === parseInt(bookingId))
+                        if (booking) {
+                          setFieldValue('booking_id', booking.id)
+                          setFieldValue('purpose', booking.event_name || '')
+                          setFieldValue('event_start_date', booking.start_date?.slice(0, 10) || '')
+                          setFieldValue('event_finish_date', booking.end_date?.slice(0, 10) || '')
+                          setFieldValue('notes', booking.location || '')
+                          if (booking.truck_id) {
+                            setFieldValue('truck_id', String(booking.truck_id))
+                            const truck = trucks.find(t => t.id === booking.truck_id)
+                            setFieldValue('vehicle_reg', truck?.plate_number || '')
+                          }
+                          if (booking.driver_id) {
+                            setFieldValue('driver_id', String(booking.driver_id))
+                          }
+                        }
+                      }}
+                      style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                    >
+                      <option value="">-- No booking (manual entry) --</option>
+                      {bookings.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.event_name} — {b.plate_number} — {b.start_date?.slice(0, 10)} to {b.end_date?.slice(0, 10)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Section 1: Basic Info */}
               <div style={{ background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
                 <h4 style={{ marginBottom: '0.75rem' }}>📄 Basic Information</h4>

@@ -598,7 +598,7 @@ app.patch('/api/drivers/:id/checklist', async (req, res) => {
 // Bookings endpoints
 app.get('/api/bookings', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('bookings')
       .select(`
         *,
@@ -606,6 +606,13 @@ app.get('/api/bookings', async (req, res) => {
         drivers(name)
       `)
       .order('start_date', { ascending: false });
+
+    // Filter by driver_id if provided
+    if (req.query.driver_id) {
+      query = query.eq('driver_id', req.query.driver_id);
+    }
+
+    const { data, error } = await query;
     
     if (error) throw error;
     
