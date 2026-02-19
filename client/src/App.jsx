@@ -7,7 +7,6 @@ import IdleWarningModal from './components/IdleWarningModal'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import Trucks from './components/Trucks'
-import Trailers from './components/Trailers'
 import Drivers from './components/Drivers'
 import Bookings from './components/Bookings'
 import Equipment from './components/Equipment'
@@ -29,7 +28,6 @@ const baseTabs = [
   { id: 'dashboard', label: '📊 Dashboard', path: '/dashboard', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'bookings', label: '📅 Bookings', path: '/bookings', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'trucks', label: '🚛 Trucks', path: '/trucks', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
-  { id: 'trailers', label: '🚚 Trailers', path: '/trailers', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'drivers', label: '👤 Drivers', path: '/drivers', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'equipment', label: '📦 Equipment', path: '/equipment', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
   { id: 'jobcards', label: '📋 Job Cards', path: '/jobcards', roles: ['superadmin', 'admin', 'finance', 'staff', 'driver'] },
@@ -346,14 +344,6 @@ function App() {
             element={
               <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
                 <Trucks />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/trailers" 
-            element={
-              <ProtectedRoute user={user} allowedRoles={['superadmin', 'admin', 'finance', 'staff', 'driver']}>
-                <Trailers currentUser={user} />
               </ProtectedRoute>
             } 
           />

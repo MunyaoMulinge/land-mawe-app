@@ -42,14 +42,6 @@ INSERT INTO permissions (module, action, description) VALUES
 ('trucks', 'view_mileage', 'View truck mileage reports'),
 ('trucks', 'update_status', 'Change truck status'),
 
--- Trailers
-('trailers', 'view', 'View trailers list and details'),
-('trailers', 'create', 'Add new trailers'),
-('trailers', 'edit', 'Edit trailer information'),
-('trailers', 'delete', 'Delete trailers'),
-('trailers', 'assign', 'Assign trailers to trucks'),
-('trailers', 'view_maintenance', 'View trailer maintenance history'),
-
 -- Drivers
 ('drivers', 'view', 'View drivers list and details'),
 ('drivers', 'create', 'Add new drivers'),
@@ -161,7 +153,6 @@ WHERE
   action = 'view'
   -- Operational permissions
   OR (module = 'trucks' AND action IN ('edit', 'update_status'))
-  OR (module = 'trailers' AND action IN ('edit', 'assign'))
   OR (module = 'drivers' AND action IN ('edit', 'manage_onboarding'))
   OR (module = 'equipment' AND action IN ('create', 'edit'))
   OR (module = 'job_cards' AND action IN ('create', 'edit', 'fill_checklist', 'mark_departed'))

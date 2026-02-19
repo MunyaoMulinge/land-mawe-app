@@ -34,7 +34,6 @@ INSERT INTO permissions (module, action, description) VALUES
 ('equipment', 'create', 'Add new equipment'),
 ('maintenance', 'create', 'Create maintenance records'),
 ('bookings', 'create', 'Create bookings'),
-('trailers', 'create', 'Add new trailers'),
 ('trucks', 'create', 'Add new trucks'),
 ('job_cards', 'create', 'Create job cards'),
 ('invoices', 'create', 'Create invoices'),
