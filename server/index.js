@@ -976,6 +976,82 @@ app.patch('/api/users/:id/toggle-active', async (req, res) => {
   }
 });
 
+// Delete user permanently (superadmin only)
+app.delete('/api/users/:id', async (req, res) => {
+  const adminId = req.headers['x-user-id'];
+  const userId = parseInt(req.params.id);
+  
+  try {
+    // Check if requester is superadmin
+    const { data: admin, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', adminId)
+      .single();
+    
+    if (adminError || !admin || admin.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can delete users' });
+    }
+    
+    // Prevent self-deletion
+    if (userId === parseInt(adminId)) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+    
+    // Get user info for logging
+    const { data: targetUser, error: userError } = await supabase
+      .from('users')
+      .select('id, email, name, role')
+      .eq('id', userId)
+      .single();
+    
+    if (userError || !targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // If user is a driver, clean up driver profile
+    if (targetUser.role === 'driver') {
+      const { data: driver } = await supabase
+        .from('drivers')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      
+      if (driver) {
+        // Remove onboarding checklist
+        await supabase.from('onboarding_checklist').delete().eq('driver_id', driver.id);
+        // Unlink driver profile (keep it for historical records but remove user link)
+        await supabase.from('drivers').update({ user_id: null }).eq('id', driver.id);
+      }
+    }
+    
+    // Clear user-specific permission overrides
+    await supabase.from('user_permissions').delete().eq('user_id', userId);
+    
+    // Delete the user
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+    
+    if (deleteError) throw deleteError;
+    
+    // Log activity
+    await logActivity(adminId, 'USER_DELETED', 'user', userId, { email: targetUser.email, name: targetUser.name });
+    
+    res.json({ message: `User ${targetUser.name} deleted successfully` });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    // Check for foreign key constraint errors
+    if (err.code === '23503') {
+      return res.status(400).json({ 
+        error: 'Cannot delete this user because they have associated records (bookings, job cards, etc.). Deactivate them instead.' 
+      });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Reset user password (superadmin only) - admin sets new password directly
 app.post('/api/users/:id/reset-password', async (req, res) => {
   const { newPassword } = req.body;

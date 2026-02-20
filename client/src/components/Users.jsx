@@ -95,6 +95,26 @@ export default function Users({ currentUser }) {
     }
   };
 
+  const deleteUser = async (user) => {
+    const confirmed = window.confirm(
+      `⚠️ PERMANENTLY DELETE ${user.name || user.email}?\n\nThis cannot be undone. If the user has associated records, consider deactivating instead.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/users/${user.id}`, {
+        method: "DELETE",
+        headers: { "x-user-id": currentUser?.id },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete user");
+      alert(data.message || "User deleted");
+      fetchUsers();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const resetUserPassword = async (user) => {
     // Prompt for new password
     const newPassword = window.prompt(
@@ -497,6 +517,15 @@ export default function Users({ currentUser }) {
                           }
                         >
                           {user.is_active ? "🚫" : "✅"}
+                        </button>
+                      )}
+                      {isSuperAdmin && user.id !== currentUser?.id && (
+                        <button
+                          className="btn btn-small btn-danger"
+                          onClick={() => deleteUser(user)}
+                          title="Permanently delete user"
+                        >
+                          🗑️
                         </button>
                       )}
                     </div>
