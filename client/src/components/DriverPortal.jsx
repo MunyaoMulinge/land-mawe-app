@@ -251,10 +251,18 @@ export default function DriverPortal({ currentUser }) {
       setTrucks(trucksData)
 
       // Calculate stats
+      const today = new Date().toISOString().split('T')[0]
+      const currentTrips = bookings.filter(b => {
+        const start = b.start_date?.slice(0, 10)
+        const end = b.end_date?.slice(0, 10)
+        return start <= today && end >= today
+      })
+      
       setStats({
         total_jobs: jobs.length,
         completed: jobs.filter(j => j.status === 'completed').length,
-        active: jobs.filter(j => ['approved', 'departed'].includes(j.status)).length
+        active: jobs.filter(j => ['approved', 'departed'].includes(j.status)).length,
+        current_trips: currentTrips.length
       })
 
       setLoading(false)
@@ -406,7 +414,7 @@ export default function DriverPortal({ currentUser }) {
       </div>
 
       {/* Stats */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '1.5rem' }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '1.5rem' }}>
         <div className="stat-card">
           <div className="number">{stats.total_jobs}</div>
           <div className="label">Total Jobs</div>
@@ -418,6 +426,10 @@ export default function DriverPortal({ currentUser }) {
         <div className="stat-card">
           <div className="number" style={{ color: '#27ae60' }}>{stats.completed}</div>
           <div className="label">Completed</div>
+        </div>
+        <div className="stat-card">
+          <div className="number" style={{ color: '#e67e22' }}>{stats.current_trips}</div>
+          <div className="label">Current Trips</div>
         </div>
       </div>
 
@@ -462,8 +474,130 @@ export default function DriverPortal({ currentUser }) {
       {/* Overview */}
       {activeView === 'overview' && (
         <div>
+          {/* Current Trips - most prominent */}
+          <div className="card" style={{ borderLeft: '4px solid #e67e22', marginBottom: '1.5rem' }}>
+            <h3 style={{ marginBottom: '1rem', color: '#e67e22' }}>🚛 Current Trips</h3>
+            {(() => {
+              const today = new Date().toISOString().split('T')[0]
+              const current = myBookings.filter(b => {
+                const start = b.start_date?.slice(0, 10)
+                const end = b.end_date?.slice(0, 10)
+                return start <= today && end >= today
+              })
+              
+              if (current.length === 0) {
+                return <p style={{ color: 'var(--text-secondary)' }}>No current trips. You're not booked for any active trip right now.</p>
+              }
+              
+              return current.map(b => (
+                <div key={b.id} style={{ 
+                  padding: '1rem', 
+                  background: 'var(--bg-tertiary)', 
+                  borderRadius: '8px', 
+                  marginBottom: '0.75rem',
+                  border: '1px solid var(--border-color)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <h4 style={{ margin: '0 0 0.25rem 0' }}>📌 {b.event_name}</h4>
+                      <p style={{ margin: '0.25rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        📍 {b.location || 'No location specified'}
+                      </p>
+                      <p style={{ margin: '0.25rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        🚛 {b.plate_number} ({b.model})
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className="badge" style={{ background: '#fff3cd', color: '#856404', fontSize: '0.85rem' }}>
+                        🟢 Active
+                      </span>
+                      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {formatDate(b.start_date)} → {formatDate(b.end_date)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            })()}
+          </div>
+
+          {/* Upcoming Trips */}
+          {(() => {
+            const today = new Date().toISOString().split('T')[0]
+            const upcoming = myBookings.filter(b => b.start_date?.slice(0, 10) > today)
+            
+            if (upcoming.length === 0) return null
+            
+            return (
+              <div className="card" style={{ borderLeft: '4px solid #3498db', marginBottom: '1.5rem' }}>
+                <h3 style={{ marginBottom: '1rem', color: '#3498db' }}>📅 Upcoming Trips</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Event</th>
+                      <th>Location</th>
+                      <th>Truck</th>
+                      <th>Start Date</th>
+                      <th>End Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {upcoming.map(b => (
+                      <tr key={b.id}>
+                        <td><strong>{b.event_name}</strong></td>
+                        <td>{b.location || '-'}</td>
+                        <td>{b.plate_number} ({b.model})</td>
+                        <td>{formatDate(b.start_date)}</td>
+                        <td>{formatDate(b.end_date)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+
+          {/* Past Trips */}
+          {(() => {
+            const today = new Date().toISOString().split('T')[0]
+            const past = myBookings.filter(b => b.end_date?.slice(0, 10) < today)
+            
+            return (
+              <div className="card" style={{ borderLeft: '4px solid #95a5a6', marginBottom: '1.5rem' }}>
+                <h3 style={{ marginBottom: '1rem', color: '#95a5a6' }}>📜 Past Trips</h3>
+                {past.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)' }}>No past trips yet.</p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Event</th>
+                        <th>Location</th>
+                        <th>Truck</th>
+                        <th>Dates</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {past.map(b => (
+                        <tr key={b.id}>
+                          <td><strong>{b.event_name}</strong></td>
+                          <td>{b.location || '-'}</td>
+                          <td>{b.plate_number} ({b.model})</td>
+                          <td>{formatDate(b.start_date)} → {formatDate(b.end_date)}</td>
+                          <td><span className="badge" style={{ background: '#d4edda', color: '#155724' }}>Completed</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Active Jobs (existing) */}
           <div className="card">
-            <h3 style={{ marginBottom: '1rem' }}>🚛 Current Active Jobs</h3>
+            <h3 style={{ marginBottom: '1rem' }}>📋 Active Jobs</h3>
             {myJobCards.filter(j => ['approved', 'departed'].includes(j.status)).length === 0 ? (
               <p style={{ color: 'var(--text-secondary)' }}>No active jobs at the moment.</p>
             ) : (
@@ -485,34 +619,6 @@ export default function DriverPortal({ currentUser }) {
                       <td>{job.destination}</td>
                       <td>{formatDate(job.departure_date)}</td>
                       <td>{getStatusBadge(job.status)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="card">
-            <h3 style={{ marginBottom: '1rem' }}>📅 Recent Completed Jobs</h3>
-            {myJobCards.filter(j => j.status === 'completed').slice(0, 5).length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)' }}>No completed jobs yet.</p>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Job #</th>
-                    <th>Truck</th>
-                    <th>Destination</th>
-                    <th>Completed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {myJobCards.filter(j => j.status === 'completed').slice(0, 5).map(job => (
-                    <tr key={job.id}>
-                      <td><strong>{job.job_number}</strong></td>
-                      <td>{job.truck_plate}</td>
-                      <td>{job.destination}</td>
-                      <td>{job.completed_at ? formatDate(job.completed_at) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
