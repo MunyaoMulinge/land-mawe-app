@@ -22,6 +22,7 @@ export default function JobCards({ currentUser }) {
   const [selectedJobCard, setSelectedJobCard] = useState(null)
   const [checklist, setChecklist] = useState(null)
   const [savingChecklist, setSavingChecklist] = useState(false)
+  const [jobEquipment, setJobEquipment] = useState([])
   const [filter, setFilter] = useState({ status: '' })
   const { hasPermission } = usePermissions()
   
@@ -229,6 +230,7 @@ export default function JobCards({ currentUser }) {
       }
       setSelectedJobCard(null)
       setChecklist(null)
+      setJobEquipment([])
       fetchJobCards()
     } catch (err) {
       alert('Error: ' + err.message)
@@ -237,16 +239,18 @@ export default function JobCards({ currentUser }) {
 
   const openJobCard = async (job) => {
     setSelectedJobCard(job)
-    // Load checklist
+    // Load checklist and equipment
     try {
       const res = await fetch(`${API_BASE}/job-cards/${job.id}`, {
         headers: { 'x-user-id': currentUser?.id }
       })
       const data = await res.json()
       setChecklist(data.checklist || {})
+      setJobEquipment(data.equipment || [])
     } catch (err) {
-      console.error('Error loading checklist:', err)
+      console.error('Error loading job card details:', err)
       setChecklist({})
+      setJobEquipment([])
     }
   }
 
@@ -268,6 +272,26 @@ export default function JobCards({ currentUser }) {
       console.error('Error saving checklist:', err)
     } finally {
       setSavingChecklist(false)
+    }
+  }
+
+  const toggleEquipmentReturn = async (equipmentId, returned) => {
+    if (!selectedJobCard) return
+    // Optimistic update
+    setJobEquipment(prev => prev.map(eq => 
+      eq.id === equipmentId ? { ...eq, returned, return_date: returned ? new Date().toISOString().split('T')[0] : null } : eq
+    ))
+    try {
+      await fetch(`${API_BASE}/job-cards/${selectedJobCard.id}/equipment/${equipmentId}`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id 
+        },
+        body: JSON.stringify({ returned })
+      })
+    } catch (err) {
+      console.error('Error updating equipment return:', err)
     }
   }
 
@@ -524,14 +548,13 @@ export default function JobCards({ currentUser }) {
 
               {/* Section 5: Equipment Checklist */}
               <div style={{ background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
-                <h4 style={{ marginBottom: '0.75rem' }}>📦 Equipment Checklist</h4>
+                <h4 style={{ marginBottom: '0.75rem' }}>📦 Equipment Going Out</h4>
                 <table style={{ fontSize: '0.85rem' }}>
                   <thead>
                     <tr>
                       <th>Equipment</th>
-                      <th>Type</th>
-                      <th>Qty</th>
-                      <th>Return</th>
+                      <th>Type/Model</th>
+                      <th>Qty Sent</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -561,17 +584,6 @@ export default function JobCards({ currentUser }) {
                             }}
                             style={{ width: '60px', padding: '0.25rem' }}
                             min="0"
-                          />
-                        </td>
-                        <td>
-                          <input 
-                            type="checkbox"
-                            checked={eq.returned}
-                            onChange={e => {
-                              const newEquipment = [...values.equipment]
-                              newEquipment[index].returned = e.target.checked
-                              setFieldValue('equipment', newEquipment)
-                            }}
                           />
                         </td>
                       </tr>
@@ -812,6 +824,72 @@ export default function JobCards({ currentUser }) {
                 </div>
 
                 {savingChecklist && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Saving...</p>}
+              </div>
+            )}
+
+            {/* Equipment List & Return Tracking */}
+            {jobEquipment.length > 0 && (
+              <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                <h4 style={{ marginBottom: '0.75rem' }}>
+                  📦 Equipment
+                  {['departed', 'completed'].includes(selectedJobCard.status) 
+                    ? ' — Return Check' 
+                    : ' — Sent Out'}
+                </h4>
+                <table style={{ fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Equipment</th>
+                      <th>Type</th>
+                      <th>Qty Sent</th>
+                      {['departed', 'completed'].includes(selectedJobCard.status) && (
+                        <>
+                          <th>Returned</th>
+                          <th>Return Date</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobEquipment.map(eq => (
+                      <tr key={eq.id} style={{ 
+                        background: ['departed', 'completed'].includes(selectedJobCard.status)
+                          ? eq.returned ? '#d4edda' : '#fff3cd'
+                          : 'transparent'
+                      }}>
+                        <td><strong>{eq.equipment_name}</strong></td>
+                        <td>{eq.equipment_type || '-'}</td>
+                        <td>{eq.quantity}</td>
+                        {['departed', 'completed'].includes(selectedJobCard.status) && (
+                          <>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={eq.returned || false}
+                                onChange={e => toggleEquipmentReturn(eq.id, e.target.checked)}
+                                style={{ width: 'auto', cursor: 'pointer' }}
+                              />
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {eq.return_date ? new Date(eq.return_date).toLocaleDateString() : '-'}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {['departed', 'completed'].includes(selectedJobCard.status) && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#155724' }}>✅ {jobEquipment.filter(e => e.returned).length}</span> / {jobEquipment.length} returned
+                    {jobEquipment.length > 0 && jobEquipment.every(e => e.returned) && (
+                      <span style={{ marginLeft: '0.5rem', color: '#155724' }}>— All equipment accounted for</span>
+                    )}
+                    {jobEquipment.some(e => !e.returned) && (
+                      <span style={{ marginLeft: '0.5rem', color: '#856404' }}>⚠️ {jobEquipment.filter(e => !e.returned).length} item(s) not yet returned</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

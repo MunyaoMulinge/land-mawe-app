@@ -1519,6 +1519,32 @@ app.patch('/api/job-cards/:id/complete', async (req, res) => {
   }
 });
 
+// Update equipment return status
+app.patch('/api/job-cards/:id/equipment/:equipmentId', async (req, res) => {
+  const { returned, notes } = req.body;
+  try {
+    const updateData = { 
+      returned,
+      return_date: returned ? new Date().toISOString().split('T')[0] : null
+    };
+    if (notes !== undefined) updateData.notes = notes;
+
+    const { data, error } = await supabase
+      .from('job_card_equipment')
+      .update(updateData)
+      .eq('id', req.params.equipmentId)
+      .eq('job_card_id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating equipment return:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get job card stats
 app.get('/api/job-cards/stats/summary', async (req, res) => {
   try {
