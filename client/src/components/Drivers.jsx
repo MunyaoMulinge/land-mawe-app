@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
 import { usePermissions } from '../hooks/usePermissions'
 import AnimatedModal from './AnimatedModal'
 import AnimatedLoader from './AnimatedLoader'
-import FormikField from './FormikField'
-import { driverSchema, driverAccountSchema } from '../validations/schemas'
 const API = API_BASE
 
 const checklistItems = [
@@ -21,41 +18,23 @@ export default function Drivers() {
   const { hasPermission } = usePermissions()
   const [drivers, setDrivers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState(null)
-  const [showLinkModal, setShowLinkModal] = useState(null)
+  const [editingDriver, setEditingDriver] = useState(null)
+  const [unlinkedUsers, setUnlinkedUsers] = useState([])
+  const [editForm, setEditForm] = useState({ name: '', phone: '', license_number: '' })
 
   const fetchDrivers = () => {
-    fetch(`${API}/drivers`)
-      .then(r => r.json())
-      .then(data => { setDrivers(data); setLoading(false) })
-      .catch(() => setLoading(false))
+    Promise.all([
+      fetch(`${API}/drivers`).then(r => r.json()),
+      fetch(`${API}/drivers/unlinked-users`).then(r => r.json())
+    ]).then(([driversData, unlinked]) => {
+      setDrivers(driversData)
+      setUnlinkedUsers(unlinked)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }
 
   useEffect(() => { fetchDrivers() }, [])
-
-  const handleSubmit = async (values, { setSubmitting, resetForm }) => {
-    try {
-      const res = await fetch(`${API}/drivers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values)
-      })
-      
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Failed to create driver')
-      }
-      
-      resetForm()
-      setShowForm(false)
-      fetchDrivers()
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   const toggleChecklist = async (driverId, field, currentValue) => {
     try {
@@ -64,9 +43,7 @@ export default function Drivers() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ field, value: !currentValue })
       })
-      // Refresh drivers list
       await fetchDrivers()
-      // Update selected driver to reflect changes in modal
       const updatedDriver = drivers.find(d => d.id === driverId)
       if (updatedDriver) {
         setSelectedDriver({ ...updatedDriver, [field]: !currentValue })
@@ -76,43 +53,50 @@ export default function Drivers() {
     }
   }
 
-  const handleCreateDriverAccount = async (values, { setSubmitting }) => {
+  const handleLinkExistingUser = async (userId) => {
     try {
-      // Create user account with driver role
-      const res = await fetch(`${API}/auth/register`, {
+      const res = await fetch(`${API}/drivers/link-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-          name: showLinkModal.name,
-          phone: values.phone || showLinkModal.phone,
-          role: 'driver'
-        })
+        body: JSON.stringify({ user_id: userId })
       })
-      
       const data = await res.json()
-      
       if (!res.ok) {
-        alert(data.error || 'Failed to create account')
-        setSubmitting(false)
+        alert(data.error || 'Failed to link user')
         return
       }
-      
-      // Link driver to user
-      await fetch(`${API}/drivers/${showLinkModal.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: data.user.id })
-      })
-      
-      alert('Driver account created successfully!')
-      setShowLinkModal(null)
+      alert('Driver profile created and linked!')
       fetchDrivers()
     } catch (err) {
-      alert('Error creating driver account: ' + err.message)
-    } finally {
-      setSubmitting(false)
+      alert('Error: ' + err.message)
+    }
+  }
+
+  const startEdit = (driver) => {
+    setEditingDriver(driver)
+    setEditForm({
+      name: driver.name || '',
+      phone: driver.phone || '',
+      license_number: driver.license_number || ''
+    })
+  }
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await fetch(`${API}/drivers/${editingDriver.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to update driver')
+      }
+      setEditingDriver(null)
+      fetchDrivers()
+    } catch (err) {
+      alert(err.message)
     }
   }
 
@@ -123,46 +107,49 @@ export default function Drivers() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h2>Driver Management</h2>
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? 'Cancel' : '+ Add Driver'}
-          </button>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+            To add a new driver, create a user with the "Driver" role in User Management.
+          </p>
         </div>
 
-        {showForm && (
-          <Formik
-            initialValues={{ name: '', phone: '', license_number: '' }}
-            validationSchema={driverSchema}
-            validateOnChange={true}
-            validateOnBlur={true}
-            onSubmit={handleSubmit}
-          >
-            {({ isSubmitting }) => (
-              <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                <div className="form-row">
-                  <FormikField
-                    label="Full Name"
-                    name="name"
-                    placeholder="Driver's full name"
-                    required
-                  />
-                  <FormikField
-                    label="Phone"
-                    name="phone"
-                    placeholder="e.g. 0722123456"
-                  />
-                  <FormikField
-                    label="License Number"
-                    name="license_number"
-                    placeholder="e.g. DL123456"
-                    required
-                  />
-                </div>
-                <button type="submit" className="btn btn-success" disabled={isSubmitting}>
-                  {isSubmitting ? 'Adding...' : 'Add Driver'}
+        {/* Unlinked Driver Users Warning */}
+        {unlinkedUsers.length > 0 && (
+          <div style={{ 
+            padding: '1rem', 
+            background: '#fff3cd', 
+            border: '1px solid #ffc107', 
+            borderRadius: '8px', 
+            marginBottom: '1rem' 
+          }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: '#856404' }}>
+              ⚠️ {unlinkedUsers.length} driver user(s) without driver profiles
+            </h4>
+            <p style={{ fontSize: '0.85rem', color: '#856404', marginBottom: '0.75rem' }}>
+              These users have the driver role but no driver profile. Click to create their profile.
+            </p>
+            {unlinkedUsers.map(u => (
+              <div key={u.id} style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                padding: '0.5rem 0.75rem',
+                background: 'rgba(255,255,255,0.7)',
+                borderRadius: '6px',
+                marginBottom: '0.5rem'
+              }}>
+                <span style={{ color: '#333' }}>
+                  {u.name} ({u.email})
+                </span>
+                <button 
+                  className="btn btn-success btn-small"
+                  onClick={() => handleLinkExistingUser(u.id)}
+                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                >
+                  Create Driver Profile
                 </button>
-              </Form>
-            )}
-          </Formik>
+              </div>
+            ))}
+          </div>
         )}
 
         <table>
@@ -177,22 +164,22 @@ export default function Drivers() {
             </tr>
           </thead>
           <tbody>
-            {drivers.map(driver => (
+            {drivers.length === 0 ? (
+              <tr><td colSpan="6" style={{ textAlign: 'center' }}>No drivers yet. Create a user with the "Driver" role to get started.</td></tr>
+            ) : drivers.map(driver => (
               <tr key={driver.id}>
                 <td>{driver.name}</td>
-                <td>{driver.phone}</td>
-                <td>{driver.license_number}</td>
+                <td>{driver.phone || '-'}</td>
+                <td>
+                  {driver.license_number?.startsWith('PENDING') ? (
+                    <span style={{ color: '#dc3545', fontStyle: 'italic' }}>⚠️ Pending</span>
+                  ) : driver.license_number}
+                </td>
                 <td>
                   {driver.user_id ? (
                     <span className="badge" style={{ background: '#d4edda', color: '#155724' }}>✓ Linked</span>
                   ) : (
-                    <button 
-                      className="btn btn-small btn-primary" 
-                      onClick={() => setShowLinkModal(driver)}
-                      title="Create driver account"
-                    >
-                      Create Account
-                    </button>
+                    <span className="badge" style={{ background: '#f8d7da', color: '#721c24' }}>Not linked</span>
                   )}
                 </td>
                 <td>
@@ -201,18 +188,65 @@ export default function Drivers() {
                   </span>
                 </td>
                 <td>
-                  {hasPermission('users', 'edit') && (
-                    <button className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-                      onClick={() => setSelectedDriver(driver)}>
-                      Checklist
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {hasPermission('drivers', 'edit') && (
+                      <button className="btn btn-small" onClick={() => startEdit(driver)} title="Edit details">
+                        ✏️
+                      </button>
+                    )}
+                    {hasPermission('users', 'edit') && (
+                      <button className="btn btn-small btn-primary" onClick={() => setSelectedDriver(driver)} title="Onboarding checklist">
+                        📋
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Edit Driver Modal */}
+      <AnimatedModal
+        isOpen={!!editingDriver}
+        onClose={() => setEditingDriver(null)}
+        title={editingDriver ? `Edit Driver - ${editingDriver.name}` : 'Edit Driver'}
+      >
+        {editingDriver && (
+          <form onSubmit={handleEditSubmit}>
+            <div className="form-group">
+              <label>Name</label>
+              <input 
+                value={editForm.name} 
+                onChange={e => setEditForm({...editForm, name: e.target.value})} 
+                required 
+              />
+            </div>
+            <div className="form-group">
+              <label>Phone</label>
+              <input 
+                value={editForm.phone} 
+                onChange={e => setEditForm({...editForm, phone: e.target.value})} 
+                placeholder="e.g. 0722123456"
+              />
+            </div>
+            <div className="form-group">
+              <label>License Number {editingDriver.license_number?.startsWith('PENDING') && <span style={{ color: '#dc3545' }}>*Required</span>}</label>
+              <input 
+                value={editForm.license_number} 
+                onChange={e => setEditForm({...editForm, license_number: e.target.value})} 
+                placeholder="e.g. DL123456"
+                required
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+              <button type="button" className="btn" onClick={() => setEditingDriver(null)}>Cancel</button>
+              <button type="submit" className="btn btn-success">Save Changes</button>
+            </div>
+          </form>
+        )}
+      </AnimatedModal>
 
       {/* Checklist Modal */}
       <AnimatedModal
@@ -255,64 +289,9 @@ export default function Drivers() {
               ))}
             </ul>
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => setSelectedDriver(null)}
-              >
-                Close
-              </button>
+              <button className="btn btn-secondary" onClick={() => setSelectedDriver(null)}>Close</button>
             </div>
           </div>
-        )}
-      </AnimatedModal>
-
-      {/* Create Driver Account Modal */}
-      <AnimatedModal
-        isOpen={!!showLinkModal}
-        onClose={() => setShowLinkModal(null)}
-        title="🚗 Create Driver Account"
-      >
-        {showLinkModal && (
-          <Formik
-            initialValues={{ email: '', password: '', phone: '' }}
-            validationSchema={driverAccountSchema}
-            validateOnChange={true}
-            validateOnBlur={true}
-            onSubmit={handleCreateDriverAccount}
-          >
-            {({ isSubmitting }) => (
-              <Form>
-                <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-                  Creating login account for: <strong>{showLinkModal.name}</strong>
-                </p>
-                <FormikField
-                  label="Email"
-                  name="email"
-                  type="email"
-                  placeholder="driver@example.com"
-                  required
-                />
-                <FormikField
-                  label="Password"
-                  name="password"
-                  type="password"
-                  placeholder="Minimum 6 characters"
-                  required
-                />
-                <FormikField
-                  label="Phone (optional)"
-                  name="phone"
-                  placeholder={showLinkModal.phone || "Phone number"}
-                />
-                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                  <button type="button" className="btn" onClick={() => setShowLinkModal(null)}>Cancel</button>
-                  <button type="submit" className="btn btn-success" disabled={isSubmitting}>
-                    {isSubmitting ? 'Creating...' : '✅ Create Account'}
-                  </button>
-                </div>
-              </Form>
-            )}
-          </Formik>
         )}
       </AnimatedModal>
     </div>

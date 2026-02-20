@@ -146,6 +146,30 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     // Log activity
     await logActivity(newUser.id, 'USER_REGISTERED', 'user', newUser.id, { email });
     
+    // If user is a driver, auto-create driver profile and link it
+    if (newUser.role === 'driver') {
+      try {
+        const { data: driverData, error: driverError } = await supabase
+          .from('drivers')
+          .insert([{ 
+            name: newUser.name || name,
+            phone: phone || '',
+            license_number: 'PENDING-' + newUser.id,
+            user_id: newUser.id
+          }])
+          .select()
+          .single();
+        
+        if (!driverError && driverData) {
+          await supabase
+            .from('onboarding_checklist')
+            .insert([{ driver_id: driverData.id }]);
+        }
+      } catch (driverErr) {
+        console.error('Error auto-creating driver profile:', driverErr);
+      }
+    }
+    
     res.json({ 
       user: newUser,
       token: 'token-' + newUser.id
@@ -545,6 +569,94 @@ app.patch('/api/drivers/:id', async (req, res) => {
   }
 });
 
+// Link existing user to a new driver profile
+app.post('/api/drivers/link-user', async (req, res) => {
+  const { user_id } = req.body;
+  try {
+    // Get the user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, name, phone, role')
+      .eq('id', user_id)
+      .single();
+    
+    if (userError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (user.role !== 'driver') {
+      return res.status(400).json({ error: 'User is not a driver' });
+    }
+    
+    // Check if already linked
+    const { data: existingDriver } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('user_id', user_id)
+      .single();
+    
+    if (existingDriver) {
+      return res.status(400).json({ error: 'User is already linked to a driver profile' });
+    }
+    
+    // Create driver profile linked to this user
+    const { data: driverData, error: driverError } = await supabase
+      .from('drivers')
+      .insert([{
+        name: user.name,
+        phone: user.phone || '',
+        license_number: 'PENDING-' + user.id,
+        user_id: user.id
+      }])
+      .select()
+      .single();
+    
+    if (driverError) throw driverError;
+    
+    // Create onboarding checklist
+    await supabase
+      .from('onboarding_checklist')
+      .insert([{ driver_id: driverData.id }]);
+    
+    res.json({ message: 'Driver profile created and linked', driver: driverData });
+  } catch (err) {
+    console.error('Error linking user to driver:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get unlinked driver users (users with role=driver but no driver profile)
+app.get('/api/drivers/unlinked-users', async (req, res) => {
+  try {
+    // Get all users with driver role
+    const { data: driverUsers, error: usersError } = await supabase
+      .from('users')
+      .select('id, name, email, phone')
+      .eq('role', 'driver')
+      .eq('is_active', true);
+    
+    if (usersError) throw usersError;
+    
+    // Get all driver profiles that have user_id set
+    const { data: linkedDrivers, error: driversError } = await supabase
+      .from('drivers')
+      .select('user_id')
+      .not('user_id', 'is', null);
+    
+    if (driversError) throw driversError;
+    
+    const linkedUserIds = linkedDrivers.map(d => d.user_id);
+    
+    // Filter to only unlinked users
+    const unlinked = driverUsers.filter(u => !linkedUserIds.includes(u.id));
+    
+    res.json(unlinked);
+  } catch (err) {
+    console.error('Error fetching unlinked users:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/drivers/:id/checklist', async (req, res) => {
   const { field, value } = req.body;
   const validFields = ['license_verified', 'medical_check', 'safety_training', 
@@ -763,7 +875,7 @@ app.post('/api/users', async (req, res) => {
           .insert([{ 
             name: name,
             phone: phone,
-            license_number: 'PENDING', // Placeholder - admin can update later
+            license_number: 'PENDING-' + newUser.id,
             user_id: newUser.id
           }])
           .select()
