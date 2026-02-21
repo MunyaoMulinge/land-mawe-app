@@ -55,6 +55,7 @@ export default function JobCards({ currentUser }) {
     
     // Equipment
     equipment: EQUIPMENT_TYPES.map(name => ({ name, type: '', quantity: 0, returned: false })),
+    additional_equipment: '',
     
     // Inspection
     damage_report: ''
@@ -194,7 +195,8 @@ export default function JobCards({ currentUser }) {
           returned: equipmentMap[name]?.returned || false
         }))
       })(),
-      damage_report: editingJobCard.damage_report || ''
+      damage_report: editingJobCard.damage_report || '',
+      additional_equipment: editingJobCard.additional_equipment || ''
     }
   }
 
@@ -590,6 +592,16 @@ export default function JobCards({ currentUser }) {
                     ))}
                   </tbody>
                 </table>
+                
+                <div style={{ marginTop: '1rem' }}>
+                  <FormikField
+                    label="Additional Equipment (not listed above)"
+                    name="additional_equipment"
+                    type="textarea"
+                    placeholder="e.g. 2x Extension cables, 1x Canopy tent, 3x Banners..."
+                    rows="3"
+                  />
+                </div>
               </div>
 
               {/* Section 6: Inspection */}
@@ -890,6 +902,14 @@ export default function JobCards({ currentUser }) {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Additional Equipment (free text) */}
+            {selectedJobCard.additional_equipment && (
+              <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                <h4 style={{ marginBottom: '0.5rem' }}>📝 Additional Equipment</h4>
+                <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{selectedJobCard.additional_equipment}</p>
               </div>
             )}
 

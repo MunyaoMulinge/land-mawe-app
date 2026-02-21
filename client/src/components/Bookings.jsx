@@ -19,7 +19,7 @@ export default function Bookings() {
       fetch(`${API}/drivers`).then(r => r.json())
     ]).then(([b, t, d]) => {
       setBookings(b)
-      setTrucks(t.filter(truck => truck.status === 'available'))
+      setTrucks(t)
       setDrivers(d.filter(driver => driver.onboarding_complete))
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -33,11 +33,16 @@ export default function Bookings() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form)
-    }).then(() => {
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error || 'Failed to create booking')
+        return
+      }
       setForm({ truck_id: '', driver_id: '', event_name: '', location: '', start_date: '', end_date: '' })
       setShowForm(false)
       fetchData()
-    })
+    }).catch(err => alert('Error: ' + err.message))
   }
 
   if (loading) return <div className="loading">Loading bookings...</div>

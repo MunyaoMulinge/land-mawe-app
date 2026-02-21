@@ -746,6 +746,24 @@ app.get('/api/bookings', async (req, res) => {
 app.post('/api/bookings', async (req, res) => {
   const { truck_id, driver_id, event_name, location, start_date, end_date } = req.body;
   try {
+    // Check for overlapping bookings on this truck
+    const { data: overlapping, error: overlapError } = await supabase
+      .from('bookings')
+      .select('id, event_name, start_date, end_date')
+      .eq('truck_id', truck_id)
+      .neq('status', 'cancelled')
+      .lte('start_date', end_date)
+      .gte('end_date', start_date);
+    
+    if (overlapError) throw overlapError;
+    
+    if (overlapping && overlapping.length > 0) {
+      const conflict = overlapping[0];
+      return res.status(400).json({ 
+        error: `Truck is already booked for "${conflict.event_name}" from ${conflict.start_date} to ${conflict.end_date}. Choose different dates.`
+      });
+    }
+    
     // Insert booking
     const { data: bookingData, error: bookingError } = await supabase
       .from('bookings')
@@ -762,14 +780,6 @@ app.post('/api/bookings', async (req, res) => {
       .single();
     
     if (bookingError) throw bookingError;
-    
-    // Update truck status
-    const { error: truckUpdateError } = await supabase
-      .from('trucks')
-      .update({ status: 'booked' })
-      .eq('id', truck_id);
-    
-    if (truckUpdateError) throw truckUpdateError;
     
     res.json(bookingData);
   } catch (err) {
@@ -1315,7 +1325,7 @@ app.post('/api/job-cards', async (req, res) => {
     job_date, purpose, client_name, event_start_date, event_finish_date, branding_in_house,
     crew, team_lead, notes, merchandise,
     vehicle_reg, kilometer, fuel_gauge, current_average,
-    equipment, damage_report,
+    equipment, additional_equipment, damage_report,
     // Legacy fields for backward compatibility
     departure_date, destination
   } = req.body;
@@ -1352,6 +1362,7 @@ app.post('/api/job-cards', async (req, res) => {
         fuel_gauge: fuel_gauge || null,
         current_average: toFloat(current_average),
         damage_report: damage_report || null,
+        additional_equipment: additional_equipment || null,
         departure_date: toDateOrNull(departure_date) || toDateOrNull(event_start_date) || toDateOrNull(job_date),
         destination: destination || client_name || null,
         purpose: purpose || null,
@@ -1404,7 +1415,7 @@ app.patch('/api/job-cards/:id', async (req, res) => {
     purpose, client_name, event_start_date, event_finish_date, branding_in_house,
     crew, team_lead, notes, merchandise,
     vehicle_reg, kilometer, fuel_gauge, current_average,
-    equipment, damage_report
+    equipment, additional_equipment, damage_report
   } = req.body;
   const userId = req.headers['x-user-id'];
 
@@ -1442,6 +1453,7 @@ app.patch('/api/job-cards/:id', async (req, res) => {
       fuel_gauge: fuel_gauge || null,
       current_average: toFloat(current_average),
       damage_report: damage_report || null,
+      additional_equipment: additional_equipment || null,
       departure_date: toDateOrNull(event_start_date),
       destination: client_name || null,
       purpose: purpose || null,
