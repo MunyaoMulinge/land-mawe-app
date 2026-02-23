@@ -6,11 +6,13 @@ const PermissionsContext = createContext(null);
 export function PermissionsProvider({ children, currentUser }) {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
 
   const fetchPermissions = async () => {
     if (!currentUser) {
       setPermissions([]);
       setLoading(false);
+      setHasFetched(false);
       return;
     }
     
@@ -27,6 +29,7 @@ export function PermissionsProvider({ children, currentUser }) {
       console.error('Error fetching permissions:', err);
     } finally {
       setLoading(false);
+      setHasFetched(true);
     }
   };
 
@@ -80,6 +83,7 @@ export function PermissionsProvider({ children, currentUser }) {
   const value = {
     permissions,
     loading,
+    hasFetched,
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,

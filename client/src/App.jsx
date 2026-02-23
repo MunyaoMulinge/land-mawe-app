@@ -43,7 +43,7 @@ const baseTabs = [
 
 // Protected Route component for permission-based access
 function ProtectedRoute({ user, allowedRoles, requiredPermission, children }) {
-  const { hasPermission, loading } = usePermissions()
+  const { hasPermission, loading, hasFetched } = usePermissions()
   
   if (!user) return <Navigate to="/" replace />
   
@@ -52,17 +52,17 @@ function ProtectedRoute({ user, allowedRoles, requiredPermission, children }) {
     return <Navigate to="/no-access" replace />
   }
   
+  // Wait for permissions to actually be fetched before making decisions
+  if (requiredPermission && (!hasFetched || loading)) {
+    return <div className="loading">Loading...</div>
+  }
+  
   // Check permission if specified
-  if (requiredPermission && !loading) {
+  if (requiredPermission) {
     const [module, action] = requiredPermission.split(':')
     if (!hasPermission(module, action)) {
       return <Navigate to="/no-access" replace />
     }
-  }
-  
-  // Show loading while permissions are being fetched
-  if (requiredPermission && loading) {
-    return <div className="loading">Loading...</div>
   }
   
   return children
@@ -79,9 +79,10 @@ function RequireAuth({ user, children }) {
 
 // Smart redirect component - redirects to first available route
 function SmartRedirect({ user }) {
-  const { hasPermission, loading } = usePermissions()
+  const { hasPermission, loading, hasFetched } = usePermissions()
   
-  if (loading) {
+  // Wait until permissions have actually been fetched
+  if (!hasFetched || loading) {
     return <div className="loading">Loading...</div>
   }
   
