@@ -38,10 +38,20 @@ export function PermissionsProvider({ children, currentUser }) {
   }, [currentUser]);
   
   // Refresh permissions when window gains focus (for cross-tab updates)
+  // Silent refresh - don't set loading to avoid page flash
   useEffect(() => {
-    const handleFocus = () => {
-      if (currentUser) {
-        fetchPermissions();
+    const handleFocus = async () => {
+      if (!currentUser) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/permissions`, {
+          headers: { 'x-user-id': currentUser.id }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPermissions(data.permissions);
+        }
+      } catch (err) {
+        console.error('Error refreshing permissions:', err);
       }
     };
     
