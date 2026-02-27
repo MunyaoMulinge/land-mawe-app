@@ -116,15 +116,15 @@ export default function Drivers() {
         {unlinkedUsers.length > 0 && (
           <div style={{ 
             padding: '1rem', 
-            background: '#fff3cd', 
-            border: '1px solid #ffc107', 
+            background: 'rgba(243, 156, 18, 0.15)', 
+            border: '1px solid var(--accent-warning)', 
             borderRadius: '8px', 
             marginBottom: '1rem' 
           }}>
-            <h4 style={{ margin: '0 0 0.5rem 0', color: '#856404' }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--accent-warning)' }}>
               ⚠️ {unlinkedUsers.length} driver user(s) without driver profiles
             </h4>
-            <p style={{ fontSize: '0.85rem', color: '#856404', marginBottom: '0.75rem' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
               These users have the driver role but no driver profile. Click to create their profile.
             </p>
             {unlinkedUsers.map(u => (
@@ -177,9 +177,9 @@ export default function Drivers() {
                 </td>
                 <td>
                   {driver.user_id ? (
-                    <span className="badge" style={{ background: '#d4edda', color: '#155724' }}>✓ Linked</span>
+                    <span className="badge" style={{ background: 'var(--accent-success)', color: '#fff' }}>✓ Linked</span>
                   ) : (
-                    <span className="badge" style={{ background: '#f8d7da', color: '#721c24' }}>Not linked</span>
+                    <span className="badge" style={{ background: 'var(--accent-danger)', color: '#fff' }}>Not linked</span>
                   )}
                 </td>
                 <td>

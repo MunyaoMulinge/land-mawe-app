@@ -30,17 +30,17 @@ export default function AnimatedToast({ message, type = 'success', onClose }) {
   }, [onClose]);
 
   const bgColors = {
-    success: '#d4edda',
-    error: '#f8d7da',
-    warning: '#fff3cd',
-    info: '#cce5ff'
+    success: 'rgba(39, 174, 96, 0.15)',
+    error: 'rgba(231, 76, 60, 0.15)',
+    warning: 'rgba(243, 156, 18, 0.15)',
+    info: 'rgba(52, 152, 219, 0.15)'
   };
 
   const textColors = {
-    success: '#155724',
-    error: '#721c24',
-    warning: '#856404',
-    info: '#004085'
+    success: 'var(--accent-success)',
+    error: 'var(--accent-danger)',
+    warning: 'var(--accent-warning)',
+    info: 'var(--accent-primary)'
   };
 
   const icons = {

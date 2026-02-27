@@ -231,8 +231,8 @@ export default function PermissionManager({ currentUser }) {
         {message && (
           <div style={{ 
             padding: '0.75rem', 
-            background: message.includes('Error') ? '#f8d7da' : '#d4edda',
-            color: message.includes('Error') ? '#721c24' : '#155724',
+            background: message.includes('Error') ? 'rgba(231, 76, 60, 0.15)' : 'rgba(39, 174, 96, 0.15)',
+            color: message.includes('Error') ? 'var(--accent-danger)' : 'var(--accent-success)',
             borderRadius: '6px',
             marginBottom: '1rem'
           }}>

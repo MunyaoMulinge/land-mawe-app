@@ -202,12 +202,12 @@ export default function JobCards({ currentUser }) {
 
   const getStatusBadge = (status) => {
     const styles = {
-      draft: { bg: '#e2e3e5', color: '#383d41' },
-      pending_approval: { bg: '#fff3cd', color: '#856404' },
-      approved: { bg: '#cce5ff', color: '#004085' },
-      departed: { bg: '#d4edda', color: '#155724' },
-      completed: { bg: '#d1ecf1', color: '#0c5460' },
-      cancelled: { bg: '#f8d7da', color: '#721c24' }
+      draft: { bg: 'var(--bg-tertiary)', color: 'var(--text-secondary)' },
+      pending_approval: { bg: 'var(--accent-warning)', color: '#fff' },
+      approved: { bg: 'var(--accent-primary)', color: '#fff' },
+      departed: { bg: 'var(--accent-success)', color: '#fff' },
+      completed: { bg: 'var(--accent-primary)', color: '#fff' },
+      cancelled: { bg: 'var(--accent-danger)', color: '#fff' }
     }
     const style = styles[status] || styles.draft
     return (
@@ -353,7 +353,7 @@ export default function JobCards({ currentUser }) {
               
               {/* Booking Selector */}
               {bookings.length > 0 && (
-                <div style={{ background: '#e8f4fd', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #b8daff' }}>
+                <div style={{ background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid var(--border-color)' }}>
                   <h4 style={{ marginBottom: '0.75rem' }}>📅 Pre-fill from Booking (optional)</h4>
                   <div className="form-group">
                     <label>Select a Booking</label>
@@ -517,7 +517,7 @@ export default function JobCards({ currentUser }) {
                     <input 
                       value={values.vehicle_reg}
                       readOnly
-                      style={{ background: '#e9ecef', width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                      style={{ background: 'var(--bg-tertiary)', width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}
                     />
                   </div>
                   <FormikField
@@ -866,7 +866,7 @@ export default function JobCards({ currentUser }) {
                     {jobEquipment.map(eq => (
                       <tr key={eq.id} style={{ 
                         background: ['departed', 'completed'].includes(selectedJobCard.status)
-                          ? eq.returned ? '#d4edda' : '#fff3cd'
+                          ? eq.returned ? 'rgba(39, 174, 96, 0.15)' : 'rgba(243, 156, 18, 0.15)'
                           : 'transparent'
                       }}>
                         <td><strong>{eq.equipment_name}</strong></td>
@@ -893,12 +893,12 @@ export default function JobCards({ currentUser }) {
                 </table>
                 {['departed', 'completed'].includes(selectedJobCard.status) && (
                   <div style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
-                    <span style={{ color: '#155724' }}>✅ {jobEquipment.filter(e => e.returned).length}</span> / {jobEquipment.length} returned
+                    <span style={{ color: 'var(--accent-success)' }}>✅ {jobEquipment.filter(e => e.returned).length}</span> / {jobEquipment.length} returned
                     {jobEquipment.length > 0 && jobEquipment.every(e => e.returned) && (
-                      <span style={{ marginLeft: '0.5rem', color: '#155724' }}>— All equipment accounted for</span>
+                      <span style={{ marginLeft: '0.5rem', color: 'var(--accent-success)' }}>— All equipment accounted for</span>
                     )}
                     {jobEquipment.some(e => !e.returned) && (
-                      <span style={{ marginLeft: '0.5rem', color: '#856404' }}>⚠️ {jobEquipment.filter(e => !e.returned).length} item(s) not yet returned</span>
+                      <span style={{ marginLeft: '0.5rem', color: 'var(--accent-warning)' }}>⚠️ {jobEquipment.filter(e => !e.returned).length} item(s) not yet returned</span>
                     )}
                   </div>
                 )}

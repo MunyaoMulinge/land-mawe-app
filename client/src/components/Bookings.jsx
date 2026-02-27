@@ -60,7 +60,7 @@ export default function Bookings() {
         </div>
 
         {showForm && hasPermission('bookings', 'create') && (
-          <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+          <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
             <div className="form-row">
               <div className="form-group">
                 <label>Event Name</label>

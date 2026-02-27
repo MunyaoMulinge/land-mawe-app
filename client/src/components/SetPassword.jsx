@@ -92,8 +92,8 @@ export default function SetPassword() {
 
         {error && (
           <div style={{ 
-            background: '#f8d7da', 
-            color: '#721c24', 
+            background: 'rgba(231, 76, 60, 0.15)', 
+            color: 'var(--accent-danger)', 
             padding: '0.75rem', 
             borderRadius: '4px',
             marginBottom: '1rem'

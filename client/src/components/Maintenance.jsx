@@ -149,10 +149,10 @@ export default function Maintenance({ currentUser }) {
 
   const getStatusBadge = (status) => {
     const styles = {
-      scheduled: { bg: '#fff3cd', color: '#856404' },
-      in_progress: { bg: '#cce5ff', color: '#004085' },
-      completed: { bg: '#d4edda', color: '#155724' },
-      cancelled: { bg: '#f8d7da', color: '#721c24' }
+      scheduled: { bg: 'var(--accent-warning)', color: '#fff' },
+      in_progress: { bg: 'var(--accent-primary)', color: '#fff' },
+      completed: { bg: 'var(--accent-success)', color: '#fff' },
+      cancelled: { bg: 'var(--accent-danger)', color: '#fff' }
     }
     const style = styles[status] || styles.scheduled
     return (
@@ -221,9 +221,9 @@ export default function Maintenance({ currentUser }) {
 
       {/* Alerts for overdue */}
       {upcoming.overdue?.length > 0 && (
-        <div className="card" style={{ background: '#fff3cd', borderLeft: '4px solid #ffc107', marginBottom: '1rem' }}>
-          <h3 style={{ color: '#856404', marginBottom: '0.5rem' }}>⚠️ Overdue Maintenance</h3>
-          <p style={{ color: '#856404' }}>
+        <div className="card" style={{ background: 'rgba(243, 156, 18, 0.15)', borderLeft: '4px solid var(--accent-warning)', marginBottom: '1rem' }}>
+          <h3 style={{ color: 'var(--accent-warning)', marginBottom: '0.5rem' }}>⚠️ Overdue Maintenance</h3>
+          <p style={{ color: 'var(--text-secondary)' }}>
             {upcoming.overdue.length} maintenance task(s) are overdue and need attention!
           </p>
         </div>
@@ -289,7 +289,7 @@ export default function Maintenance({ currentUser }) {
           </div>
 
           {showForm && hasPermission('maintenance', 'create') && (
-            <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+            <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
               <h3 style={{ marginBottom: '1rem' }}>Schedule Maintenance</h3>
               <div className="form-row">
                 <div className="form-group">
@@ -402,7 +402,7 @@ export default function Maintenance({ currentUser }) {
                   onChange={e => setForm({...form, notes: e.target.value})}
                   placeholder="Additional notes..."
                   rows={2}
-                  style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                 />
               </div>
               <button type="submit" className="btn btn-success">💾 Save Maintenance Record</button>
@@ -458,7 +458,7 @@ export default function Maintenance({ currentUser }) {
           </table>
 
           {records.length === 0 && (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
               No maintenance records found.
             </p>
           )}
@@ -500,7 +500,7 @@ export default function Maintenance({ currentUser }) {
               </tbody>
             </table>
           ) : (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
               No upcoming maintenance scheduled.
             </p>
           )}
@@ -526,7 +526,7 @@ export default function Maintenance({ currentUser }) {
                 {upcoming.overdue.map(record => {
                   const daysOverdue = Math.floor((new Date() - new Date(record.service_date)) / (1000 * 60 * 60 * 24))
                   return (
-                    <tr key={record.id} style={{ background: '#fff5f5' }}>
+                    <tr key={record.id} style={{ background: 'rgba(231, 76, 60, 0.1)' }}>
                       <td>{new Date(record.service_date).toLocaleDateString()}</td>
                       <td><strong style={{ color: '#dc3545' }}>{daysOverdue} days</strong></td>
                       <td><strong>{record.truck_plate}</strong></td>
@@ -545,7 +545,7 @@ export default function Maintenance({ currentUser }) {
               </tbody>
             </table>
           ) : (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#28a745' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--accent-success)' }}>
               ✅ No overdue maintenance. Great job!
             </p>
           )}

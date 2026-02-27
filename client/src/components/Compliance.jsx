@@ -196,15 +196,15 @@ export default function Compliance({ currentUser }) {
 
   const getStatusBadge = (doc) => {
     if (!doc.expiry_date) {
-      return <span className="badge" style={{ background: '#e0e0e0', color: '#666' }}>NO EXPIRY</span>
+      return <span className="badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>NO EXPIRY</span>
     }
     const days = doc.days_until_expiry
     if (days < 0) {
-      return <span className="badge" style={{ background: '#f8d7da', color: '#721c24' }}>EXPIRED</span>
+      return <span className="badge" style={{ background: 'var(--accent-danger)', color: '#fff' }}>EXPIRED</span>
     } else if (days <= 30) {
-      return <span className="badge" style={{ background: '#fff3cd', color: '#856404' }}>EXPIRING SOON</span>
+      return <span className="badge" style={{ background: 'var(--accent-warning)', color: '#fff' }}>EXPIRING SOON</span>
     } else {
-      return <span className="badge" style={{ background: '#d4edda', color: '#155724' }}>ACTIVE</span>
+      return <span className="badge" style={{ background: 'var(--accent-success)', color: '#fff' }}>ACTIVE</span>
     }
   }
 
@@ -231,19 +231,19 @@ export default function Compliance({ currentUser }) {
             <div className="label">Total Documents</div>
           </div>
           <div className="stat-card">
-            <div className="number" style={{ color: '#28a745' }}>{stats.active}</div>
+            <div className="number" style={{ color: 'var(--accent-success)' }}>{stats.active}</div>
             <div className="label">Active</div>
           </div>
           <div className="stat-card">
-            <div className="number" style={{ color: '#ffc107' }}>{stats.expiring_soon}</div>
+            <div className="number" style={{ color: 'var(--accent-warning)' }}>{stats.expiring_soon}</div>
             <div className="label">Expiring Soon</div>
           </div>
           <div className="stat-card">
-            <div className="number" style={{ color: '#dc3545' }}>{stats.expired}</div>
+            <div className="number" style={{ color: 'var(--accent-danger)' }}>{stats.expired}</div>
             <div className="label">Expired</div>
           </div>
           <div className="stat-card">
-            <div className="number" style={{ color: stats.mandatory_expired > 0 ? '#dc3545' : '#28a745' }}>
+            <div className="number" style={{ color: stats.mandatory_expired > 0 ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
               {stats.mandatory_expired > 0 ? '⚠️' : '✅'}
             </div>
             <div className="label">{stats.mandatory_expired > 0 ? `${stats.mandatory_expired} Critical` : 'All Clear'}</div>
@@ -253,9 +253,9 @@ export default function Compliance({ currentUser }) {
 
       {/* Critical Alerts */}
       {alerts.expired?.length > 0 && (
-        <div className="card" style={{ background: '#f8d7da', borderLeft: '4px solid #dc3545', marginBottom: '1rem' }}>
-          <h3 style={{ color: '#721c24', marginBottom: '0.5rem' }}>🚨 Expired Documents</h3>
-          <p style={{ color: '#721c24' }}>
+        <div className="card" style={{ background: 'rgba(231, 76, 60, 0.1)', borderLeft: '4px solid var(--accent-danger)', marginBottom: '1rem' }}>
+          <h3 style={{ color: 'var(--accent-danger)', marginBottom: '0.5rem' }}>🚨 Expired Documents</h3>
+          <p style={{ color: 'var(--text-secondary)' }}>
             {alerts.expired.length} document(s) have expired and need immediate attention!
           </p>
           <div style={{ marginTop: '0.5rem' }}>
@@ -294,14 +294,14 @@ export default function Compliance({ currentUser }) {
           <button 
             className={`btn ${activeView === 'expiring' ? 'btn-primary' : ''}`}
             onClick={() => setActiveView('expiring')}
-            style={alerts.expiring_soon?.length > 0 ? { background: '#ffc107', color: '#000' } : {}}
+            style={alerts.expiring_soon?.length > 0 ? { background: 'var(--accent-warning)', color: '#fff' } : {}}
           >
             ⏰ Expiring ({alerts.expiring_soon?.length || 0})
           </button>
           <button 
             className={`btn ${activeView === 'expired' ? 'btn-primary' : ''}`}
             onClick={() => setActiveView('expired')}
-            style={alerts.expired?.length > 0 ? { background: '#dc3545', color: 'white' } : {}}
+            style={alerts.expired?.length > 0 ? { background: 'var(--accent-danger)', color: 'white' } : {}}
           >
             🚨 Expired ({alerts.expired?.length || 0})
           </button>
@@ -349,9 +349,9 @@ export default function Compliance({ currentUser }) {
                     <td style={{ textAlign: 'center' }}>{getDocStatus('license').icon}</td>
                     <td>
                       {hasIssues ? (
-                        <span className="badge" style={{ background: '#f8d7da', color: '#721c24' }}>Needs Attention</span>
+                        <span className="badge" style={{ background: 'var(--accent-danger)', color: '#fff' }}>Needs Attention</span>
                       ) : (
-                        <span className="badge" style={{ background: '#d4edda', color: '#155724' }}>Compliant</span>
+                        <span className="badge" style={{ background: 'var(--accent-success)', color: '#fff' }}>Compliant</span>
                       )}
                     </td>
                   </tr>
@@ -359,7 +359,7 @@ export default function Compliance({ currentUser }) {
               })}
             </tbody>
           </table>
-          <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#666' }}>
+          <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             🟢 Active | 🟡 Expiring Soon | 🔴 Expired | ❌ Missing
           </div>
         </div>
@@ -400,19 +400,19 @@ export default function Compliance({ currentUser }) {
           </div>
 
           {showForm && hasPermission('compliance', 'create') && (
-            <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+            <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
               <h3 style={{ marginBottom: '1rem' }}>Add New Document</h3>
               
               {/* Quick Upload Section - Highlighted */}
               <div style={{ 
-                background: '#e3f2fd', 
+                background: 'var(--bg-tertiary)', 
                 padding: '1rem', 
                 borderRadius: '8px', 
                 marginBottom: '1rem',
-                border: '2px dashed #2196f3'
+                border: '2px dashed var(--accent-primary)'
               }}>
-                <h4 style={{ marginBottom: '0.5rem', color: '#1976d2' }}>📎 Quick Upload (Optional)</h4>
-                <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.75rem' }}>
+                <h4 style={{ marginBottom: '0.5rem', color: 'var(--accent-primary)' }}>📎 Quick Upload (Optional)</h4>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                   Upload your document here, or skip and just fill in the details below.
                 </p>
                 <input 
@@ -421,10 +421,11 @@ export default function Compliance({ currentUser }) {
                   onChange={e => setForm({...form, document_file: e.target.files[0]})}
                   style={{ 
                     padding: '0.75rem', 
-                    border: '2px solid #2196f3', 
+                    border: '2px solid var(--accent-primary)', 
                     borderRadius: '4px', 
                     width: '100%',
-                    background: 'white',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
                     cursor: 'pointer'
                   }}
                 />
@@ -442,8 +443,8 @@ export default function Compliance({ currentUser }) {
                       {form.document_file.name.endsWith('.pdf') ? '📄' : '🖼️'}
                     </span>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 'bold', color: '#1976d2' }}>{form.document_file.name}</div>
-                      <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                      <div style={{ fontWeight: 'bold', color: 'var(--accent-primary)' }}>{form.document_file.name}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                         {(form.document_file.size / 1024).toFixed(1)} KB
                       </div>
                     </div>
@@ -451,7 +452,7 @@ export default function Compliance({ currentUser }) {
                       type="button"
                       onClick={() => setForm({...form, document_file: null})}
                       style={{ 
-                        background: '#f44336', 
+                        background: 'var(--accent-danger)', 
                         color: 'white', 
                         border: 'none', 
                         padding: '0.25rem 0.5rem',
@@ -472,7 +473,7 @@ export default function Compliance({ currentUser }) {
                   fontWeight: 'bold', 
                   marginBottom: '1rem',
                   padding: '0.5rem',
-                  background: '#f0f0f0',
+                  background: 'var(--bg-tertiary)',
                   borderRadius: '4px'
                 }}>
                   📋 Document Details {!form.document_file && '(Required if no file uploaded)'}
@@ -597,7 +598,7 @@ export default function Compliance({ currentUser }) {
                   Cancel
                 </button>
                 {!form.document_file && (!form.truck_id || !form.document_type_id || !form.expiry_date) && (
-                  <span style={{ color: '#f44336', fontSize: '0.9rem', marginLeft: '0.5rem' }}>
+                  <span style={{ color: 'var(--accent-danger)', fontSize: '0.9rem', marginLeft: '0.5rem' }}>
                     ⚠️ Upload a file OR fill in required details
                   </span>
                 )}
@@ -620,18 +621,18 @@ export default function Compliance({ currentUser }) {
             </thead>
             <tbody>
               {documents.map(doc => (
-                <tr key={doc.id} style={{ background: doc.expiry_date && doc.days_until_expiry < 0 ? '#fff5f5' : doc.expiry_date && doc.days_until_expiry <= 30 ? '#fffbeb' : 'white' }}>
+                <tr key={doc.id} style={{ background: doc.expiry_date && doc.days_until_expiry < 0 ? 'rgba(231, 76, 60, 0.1)' : doc.expiry_date && doc.days_until_expiry <= 30 ? 'rgba(243, 156, 18, 0.1)' : 'transparent' }}>
                   <td><strong>{doc.truck_plate || 'General'}</strong></td>
                   <td>{getCategoryIcon(doc.category)} {doc.document_type_name || 'Document'}</td>
                   <td>{doc.provider || '-'}</td>
                   <td>{doc.expiry_date ? new Date(doc.expiry_date).toLocaleDateString() : '-'}</td>
                   <td>
                     {doc.expiry_date ? (
-                      <strong style={{ color: doc.days_until_expiry < 0 ? '#dc3545' : doc.days_until_expiry <= 30 ? '#ffc107' : '#28a745' }}>
+                      <strong style={{ color: doc.days_until_expiry < 0 ? 'var(--accent-danger)' : doc.days_until_expiry <= 30 ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
                         {doc.days_until_expiry < 0 ? `${Math.abs(doc.days_until_expiry)} overdue` : `${doc.days_until_expiry} days`}
                       </strong>
                     ) : (
-                      <span style={{ color: '#999' }}>-</span>
+                      <span style={{ color: 'var(--text-muted)' }}>-</span>
                     )}
                   </td>
                   <td>{getStatusBadge(doc)}</td>
@@ -647,7 +648,7 @@ export default function Compliance({ currentUser }) {
                         📄 View
                       </a>
                     ) : (
-                      <span style={{ color: '#999', fontSize: '0.85rem' }}>No file</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No file</span>
                     )}
                   </td>
                   <td>
@@ -668,8 +669,8 @@ export default function Compliance({ currentUser }) {
 
       {/* Expiring Soon View */}
       {activeView === 'expiring' && (
-        <div className="card" style={{ borderLeft: '4px solid #ffc107' }}>
-          <h2 style={{ marginBottom: '1rem', color: '#856404' }}>⏰ Expiring Within 30 Days</h2>
+        <div className="card" style={{ borderLeft: '4px solid var(--accent-warning)' }}>
+          <h2 style={{ marginBottom: '1rem', color: 'var(--accent-warning)' }}>⏰ Expiring Within 30 Days</h2>
           {alerts.expiring_soon?.length > 0 ? (
             <table>
               <thead>
@@ -687,7 +688,7 @@ export default function Compliance({ currentUser }) {
                     <td><strong>{doc.truck_plate}</strong></td>
                     <td>{getCategoryIcon(doc.category)} {doc.document_type_name}</td>
                     <td>{new Date(doc.expiry_date).toLocaleDateString()}</td>
-                    <td><strong style={{ color: '#ffc107' }}>{doc.days_until_expiry} days</strong></td>
+                    <td><strong style={{ color: 'var(--accent-warning)' }}>{doc.days_until_expiry} days</strong></td>
                     <td>
                       <button 
                         className="btn btn-small btn-success"
@@ -701,7 +702,7 @@ export default function Compliance({ currentUser }) {
               </tbody>
             </table>
           ) : (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#28a745' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--accent-success)' }}>
               ✅ No documents expiring soon. Great job!
             </p>
           )}
@@ -710,8 +711,8 @@ export default function Compliance({ currentUser }) {
 
       {/* Expired View */}
       {activeView === 'expired' && (
-        <div className="card" style={{ borderLeft: '4px solid #dc3545' }}>
-          <h2 style={{ marginBottom: '1rem', color: '#dc3545' }}>🚨 Expired Documents</h2>
+        <div className="card" style={{ borderLeft: '4px solid var(--accent-danger)' }}>
+          <h2 style={{ marginBottom: '1rem', color: 'var(--accent-danger)' }}>🚨 Expired Documents</h2>
           {alerts.expired?.length > 0 ? (
             <table>
               <thead>
@@ -725,14 +726,14 @@ export default function Compliance({ currentUser }) {
               </thead>
               <tbody>
                 {alerts.expired.map(doc => (
-                  <tr key={doc.id} style={{ background: '#fff5f5' }}>
+                  <tr key={doc.id} style={{ background: 'rgba(231, 76, 60, 0.1)' }}>
                     <td><strong>{doc.truck_plate}</strong></td>
                     <td>
                       {getCategoryIcon(doc.category)} {doc.document_type_name}
-                      {doc.is_mandatory && <span style={{ color: '#dc3545', marginLeft: '0.5rem' }}>⚠️ Mandatory</span>}
+                      {doc.is_mandatory && <span style={{ color: 'var(--accent-danger)', marginLeft: '0.5rem' }}>⚠️ Mandatory</span>}
                     </td>
                     <td>{new Date(doc.expiry_date).toLocaleDateString()}</td>
-                    <td><strong style={{ color: '#dc3545' }}>{Math.abs(doc.days_until_expiry)} days</strong></td>
+                    <td><strong style={{ color: 'var(--accent-danger)' }}>{Math.abs(doc.days_until_expiry)} days</strong></td>
                     <td>
                       <button 
                         className="btn btn-small btn-danger"
@@ -746,7 +747,7 @@ export default function Compliance({ currentUser }) {
               </tbody>
             </table>
           ) : (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#28a745' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--accent-success)' }}>
               ✅ No expired documents. All clear!
             </p>
           )}

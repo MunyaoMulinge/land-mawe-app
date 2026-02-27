@@ -323,11 +323,11 @@ export default function Users({ currentUser }) {
                         />
                         <div style={{ 
                           padding: '0.75rem', 
-                          background: '#fff3cd', 
+                          background: 'rgba(243, 156, 18, 0.15)', 
                           borderRadius: '4px',
                           marginBottom: '1rem',
                           fontSize: '0.9rem',
-                          color: '#856404',
+                          color: 'var(--accent-warning)',
                           gridColumn: '1 / -1'
                         }}>
                           ⚠️ Set a password for the user. Share it securely with them.

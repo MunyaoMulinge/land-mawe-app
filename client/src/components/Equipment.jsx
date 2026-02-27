@@ -78,11 +78,11 @@ export default function Equipment({ currentUser }) {
 
   const getConditionBadge = (condition) => {
     const styles = {
-      excellent: { bg: '#d4edda', color: '#155724' },
-      good: { bg: '#d1ecf1', color: '#0c5460' },
-      fair: { bg: '#fff3cd', color: '#856404' },
-      poor: { bg: '#f8d7da', color: '#721c24' },
-      damaged: { bg: '#f8d7da', color: '#721c24' }
+      excellent: { bg: 'var(--accent-success)', color: '#fff' },
+      good: { bg: 'var(--accent-primary)', color: '#fff' },
+      fair: { bg: 'var(--accent-warning)', color: '#fff' },
+      poor: { bg: 'var(--accent-danger)', color: '#fff' },
+      damaged: { bg: 'var(--accent-danger)', color: '#fff' }
     }
     const s = styles[condition] || styles.good
     return <span className="badge" style={{ background: s.bg, color: s.color }}>{condition.toUpperCase()}</span>
@@ -90,9 +90,9 @@ export default function Equipment({ currentUser }) {
 
   const getStatusBadge = (status) => {
     const styles = {
-      available: { bg: '#d4edda', color: '#155724' },
-      in_use: { bg: '#fff3cd', color: '#856404' },
-      maintenance: { bg: '#f8d7da', color: '#721c24' }
+      available: { bg: 'var(--accent-success)', color: '#fff' },
+      in_use: { bg: 'var(--accent-warning)', color: '#fff' },
+      maintenance: { bg: 'var(--accent-danger)', color: '#fff' }
     }
     const s = styles[status] || styles.available
     return <span className="badge" style={{ background: s.bg, color: s.color }}>{status.replace('_', ' ').toUpperCase()}</span>

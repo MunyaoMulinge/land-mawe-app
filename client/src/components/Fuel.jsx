@@ -81,12 +81,12 @@ function LiveLocationCapture({ onLocationCaptured }) {
       padding: '1rem', 
       background: 'var(--bg-tertiary)', 
       borderRadius: '8px',
-      border: location ? '2px solid #28a745' : '1px solid var(--border-color)'
+      border: location ? '2px solid var(--accent-success)' : '1px solid var(--border-color)'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '1.2rem' }}>📍</span>
         <strong style={{ color: 'var(--text-primary)' }}>Live Location Verification</strong>
-        {location && <span style={{ color: '#28a745', fontSize: '0.8rem' }}>✓ Captured</span>}
+        {location && <span style={{ color: 'var(--accent-success)', fontSize: '0.8rem' }}>✓ Captured</span>}
       </div>
       
       {!location ? (
@@ -123,7 +123,7 @@ function LiveLocationCapture({ onLocationCaptured }) {
             )}
           </button>
           {error && (
-            <p style={{ color: '#dc3545', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+            <p style={{ color: 'var(--accent-danger)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
               ⚠️ {error}
             </p>
           )}
@@ -131,8 +131,8 @@ function LiveLocationCapture({ onLocationCaptured }) {
       ) : (
         <div>
           <div style={{ 
-            background: '#d4edda', 
-            color: '#155724', 
+            background: 'rgba(39, 174, 96, 0.15)', 
+            color: 'var(--accent-success)', 
             padding: '0.75rem', 
             borderRadius: '6px',
             marginBottom: '0.75rem'
@@ -155,7 +155,7 @@ function LiveLocationCapture({ onLocationCaptured }) {
                 display: 'inline-block',
                 marginTop: '0.5rem',
                 fontSize: '0.8rem',
-                color: '#155724',
+                color: 'var(--accent-success)',
                 textDecoration: 'underline'
               }}
             >
@@ -312,8 +312,8 @@ export default function Fuel({ currentUser }) {
           top: '20px',
           right: '20px',
           padding: '1rem 1.5rem',
-          background: toast.type === 'success' ? '#d4edda' : '#f8d7da',
-          color: toast.type === 'success' ? '#155724' : '#721c24',
+          background: toast.type === 'success' ? 'rgba(39, 174, 96, 0.15)' : 'rgba(231, 76, 60, 0.15)',
+          color: toast.type === 'success' ? 'var(--accent-success)' : 'var(--accent-danger)',
           borderRadius: '8px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           zIndex: 1000,
@@ -436,7 +436,7 @@ export default function Fuel({ currentUser }) {
                 }
                 
                 return (
-                  <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
                     <h3 style={{ marginBottom: '1rem' }}>Record Fuel Purchase</h3>
                     <div className="form-row">
                       <FormikField
@@ -490,7 +490,7 @@ export default function Fuel({ currentUser }) {
                           type="text"
                           value={totalCost}
                           disabled
-                          style={{ background: '#e9ecef', width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                          style={{ background: 'var(--bg-tertiary)', width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}
                         />
                       </div>
                     </div>
@@ -605,8 +605,8 @@ export default function Fuel({ currentUser }) {
                           className="badge" 
                           title={`GPS: ${record.gps_coordinates}\nAccuracy: ±${record.gps_accuracy}m\nTime: ${new Date(record.gps_timestamp).toLocaleTimeString()}`}
                           style={{ 
-                            background: record.gps_accuracy < 50 ? '#d4edda' : '#fff3cd',
-                            color: record.gps_accuracy < 50 ? '#155724' : '#856404',
+                            background: record.gps_accuracy < 50 ? 'rgba(39, 174, 96, 0.15)' : 'rgba(243, 156, 18, 0.15)',
+                            color: record.gps_accuracy < 50 ? 'var(--accent-success)' : 'var(--accent-warning)',
                             cursor: 'help'
                           }}
                         >
@@ -628,15 +628,15 @@ export default function Fuel({ currentUser }) {
                         </a>
                       </div>
                     ) : (
-                      <span className="badge" style={{ background: '#e2e3e5', color: '#383d41' }}>
+                      <span className="badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
                         ❌ None
                       </span>
                     )}
                   </td>
                   <td>
                     <span className="badge" style={{ 
-                      background: record.payment_method === 'cash' ? '#d4edda' : '#cce5ff',
-                      color: record.payment_method === 'cash' ? '#155724' : '#004085'
+                      background: record.payment_method === 'cash' ? 'rgba(39, 174, 96, 0.15)' : 'rgba(52, 152, 219, 0.15)',
+                      color: record.payment_method === 'cash' ? 'var(--accent-success)' : 'var(--accent-primary)'
                     }}>
                       {record.payment_method}
                     </span>
@@ -644,13 +644,13 @@ export default function Fuel({ currentUser }) {
                   <td>
                     <span className="badge" style={{ 
                       background: 
-                        record.approval_status === 'approved' ? '#d4edda' : 
-                        record.approval_status === 'rejected' ? '#f8d7da' : 
-                        '#fff3cd',
+                        record.approval_status === 'approved' ? 'rgba(39, 174, 96, 0.15)' : 
+                        record.approval_status === 'rejected' ? 'rgba(231, 76, 60, 0.15)' : 
+                        'rgba(243, 156, 18, 0.15)',
                       color: 
-                        record.approval_status === 'approved' ? '#155724' : 
-                        record.approval_status === 'rejected' ? '#721c24' : 
-                        '#856404'
+                        record.approval_status === 'approved' ? 'var(--accent-success)' : 
+                        record.approval_status === 'rejected' ? 'var(--accent-danger)' : 
+                        'var(--accent-warning)'
                     }}>
                       {record.approval_status === 'approved' ? '✅ Approved' : 
                        record.approval_status === 'rejected' ? '❌ Rejected' : 
@@ -674,7 +674,7 @@ export default function Fuel({ currentUser }) {
           </table>
 
           {fuelRecords.length === 0 && (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
               No fuel records found. Add one to get started.
             </p>
           )}
@@ -701,7 +701,7 @@ export default function Fuel({ currentUser }) {
             </thead>
             <tbody>
               {fuelRecords.filter(r => r.approval_status === 'pending').map(record => (
-                <tr key={record.id} style={{ background: '#fff3cd' }}>
+                <tr key={record.id} style={{ background: 'rgba(243, 156, 18, 0.15)' }}>
                   <td>{new Date(record.fuel_date).toLocaleDateString()}</td>
                   <td><strong>{record.truck_plate}</strong></td>
                   <td>{record.driver_name || '-'}</td>
@@ -711,8 +711,8 @@ export default function Fuel({ currentUser }) {
                   <td>{record.fuel_station || '-'}</td>
                   <td>
                     <span className="badge" style={{ 
-                      background: record.payment_method === 'cash' ? '#d4edda' : '#cce5ff',
-                      color: record.payment_method === 'cash' ? '#155724' : '#004085'
+                      background: record.payment_method === 'cash' ? 'rgba(39, 174, 96, 0.15)' : 'rgba(52, 152, 219, 0.15)',
+                      color: record.payment_method === 'cash' ? 'var(--accent-success)' : 'var(--accent-primary)'
                     }}>
                       {record.payment_method}
                     </span>
@@ -741,7 +741,7 @@ export default function Fuel({ currentUser }) {
           </table>
 
           {fuelRecords.filter(r => r.approval_status === 'pending').length === 0 && (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
               No pending fuel records to approve.
             </p>
           )}
@@ -790,7 +790,7 @@ export default function Fuel({ currentUser }) {
           </table>
 
           {truckStats.length === 0 && (
-            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
               No fuel data available yet.
             </p>
           )}

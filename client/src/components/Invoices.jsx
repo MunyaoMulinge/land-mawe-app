@@ -72,13 +72,13 @@ export default function Invoices({ currentUser }) {
 
   const getStatusBadge = (status) => {
     const styles = {
-      draft: { bg: '#e9ecef', color: '#495057' },
-      sent: { bg: '#cce5ff', color: '#004085' },
-      viewed: { bg: '#d1ecf1', color: '#0c5460' },
-      partial: { bg: '#fff3cd', color: '#856404' },
-      paid: { bg: '#d4edda', color: '#155724' },
-      overdue: { bg: '#f8d7da', color: '#721c24' },
-      cancelled: { bg: '#e2e3e5', color: '#383d41' }
+      draft: { bg: 'var(--bg-tertiary)', color: 'var(--text-secondary)' },
+      sent: { bg: 'var(--accent-primary)', color: '#fff' },
+      viewed: { bg: 'var(--accent-primary)', color: '#fff' },
+      partial: { bg: 'var(--accent-warning)', color: '#fff' },
+      paid: { bg: 'var(--accent-success)', color: '#fff' },
+      overdue: { bg: 'var(--accent-danger)', color: '#fff' },
+      cancelled: { bg: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }
     }
     const s = styles[status] || styles.draft
     return <span className="badge" style={{ background: s.bg, color: s.color }}>{status.toUpperCase()}</span>
@@ -311,15 +311,15 @@ export default function Invoices({ currentUser }) {
             <div className="label">Total Invoices</div>
           </div>
           <div className="stat-card">
-            <div className="number" style={{ color: '#28a745' }}>{formatCurrency(stats.total_paid)}</div>
+            <div className="number" style={{ color: 'var(--accent-success)' }}>{formatCurrency(stats.total_paid)}</div>
             <div className="label">Total Received</div>
           </div>
           <div className="stat-card">
-            <div className="number" style={{ color: '#ffc107' }}>{formatCurrency(stats.total_outstanding)}</div>
+            <div className="number" style={{ color: 'var(--accent-warning)' }}>{formatCurrency(stats.total_outstanding)}</div>
             <div className="label">Outstanding</div>
           </div>
           <div className="stat-card">
-            <div className="number" style={{ color: stats.overdue > 0 ? '#dc3545' : '#28a745' }}>
+            <div className="number" style={{ color: stats.overdue > 0 ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
               {stats.overdue}
             </div>
             <div className="label">Overdue</div>
@@ -377,7 +377,7 @@ export default function Invoices({ currentUser }) {
                 const total = calculateTotal(subtotal, tax)
                 
                 return (
-                  <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
                     <h3 style={{ marginBottom: '1rem' }}>Create New Invoice</h3>
                     <div className="form-row">
                       <FormikField
@@ -511,14 +511,14 @@ export default function Invoices({ currentUser }) {
             </thead>
             <tbody>
               {invoices.map(inv => (
-                <tr key={inv.id} style={{ background: inv.status === 'overdue' ? '#fff5f5' : inv.status === 'paid' ? '#f0fff4' : 'white' }}>
+                <tr key={inv.id} style={{ background: inv.status === 'overdue' ? 'rgba(231, 76, 60, 0.1)' : inv.status === 'paid' ? 'rgba(39, 174, 96, 0.1)' : 'transparent' }}>
                   <td><strong>{inv.invoice_number}</strong></td>
                   <td>{inv.client_name || '-'}</td>
                   <td>{new Date(inv.invoice_date).toLocaleDateString()}</td>
                   <td>{new Date(inv.due_date).toLocaleDateString()}</td>
                   <td><strong>{formatCurrency(inv.total_amount)}</strong></td>
-                  <td style={{ color: '#28a745' }}>{formatCurrency(inv.amount_paid)}</td>
-                  <td style={{ color: parseFloat(inv.balance_due) > 0 ? '#dc3545' : '#28a745' }}>{formatCurrency(inv.balance_due)}</td>
+                  <td style={{ color: 'var(--accent-success)' }}>{formatCurrency(inv.amount_paid)}</td>
+                  <td style={{ color: parseFloat(inv.balance_due) > 0 ? 'var(--accent-danger)' : 'var(--accent-success)' }}>{formatCurrency(inv.balance_due)}</td>
                   <td>{getStatusBadge(inv.status)}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.25rem' }}>
@@ -536,7 +536,7 @@ export default function Invoices({ currentUser }) {
               ))}
             </tbody>
           </table>
-          {invoices.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>No invoices found. Create your first invoice!</p>}
+          {invoices.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No invoices found. Create your first invoice!</p>}
         </div>
       )}
 
@@ -559,7 +559,7 @@ export default function Invoices({ currentUser }) {
               onSubmit={handleCreateClient}
             >
               {({ isSubmitting }) => (
-                <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                <Form style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
                   <h3 style={{ marginBottom: '1rem' }}>Add New Client</h3>
                   <div className="form-row">
                     <FormikField
@@ -653,16 +653,16 @@ export default function Invoices({ currentUser }) {
                   <td>{client.payment_terms} days</td>
                   <td>
                     {client.is_active ? (
-                      <span className="badge" style={{ background: '#d4edda', color: '#155724' }}>Active</span>
+                      <span className="badge" style={{ background: 'var(--accent-success)', color: '#fff' }}>Active</span>
                     ) : (
-                      <span className="badge" style={{ background: '#f8d7da', color: '#721c24' }}>Inactive</span>
+                      <span className="badge" style={{ background: 'var(--accent-danger)', color: '#fff' }}>Inactive</span>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {clients.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>No clients found. Add your first client!</p>}
+          {clients.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No clients found. Add your first client!</p>}
         </div>
       )}
 
@@ -672,7 +672,7 @@ export default function Invoices({ currentUser }) {
           <>
             <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
               Invoice: <strong>{showPaymentModal.invoice_number}</strong><br />
-              Balance Due: <strong style={{ color: '#dc3545' }}>{formatCurrency(showPaymentModal.balance_due)}</strong>
+              Balance Due: <strong style={{ color: 'var(--accent-danger)' }}>{formatCurrency(showPaymentModal.balance_due)}</strong>
             </p>
             <Formik
               initialValues={{ ...paymentInitialValues, amount: showPaymentModal.balance_due }}
@@ -767,8 +767,8 @@ export default function Invoices({ currentUser }) {
               <div>Subtotal: {formatCurrency(selectedInvoice.subtotal)}</div>
               <div>Tax ({selectedInvoice.tax_rate}%): {formatCurrency(selectedInvoice.tax_amount)}</div>
               <div style={{ fontSize: '1.2rem' }}><strong>Total: {formatCurrency(selectedInvoice.total_amount)}</strong></div>
-              <div style={{ color: '#28a745' }}>Paid: {formatCurrency(selectedInvoice.amount_paid)}</div>
-              <div style={{ color: '#dc3545' }}><strong>Balance: {formatCurrency(selectedInvoice.balance_due)}</strong></div>
+              <div style={{ color: 'var(--accent-success)' }}>Paid: {formatCurrency(selectedInvoice.amount_paid)}</div>
+              <div style={{ color: 'var(--accent-danger)' }}><strong>Balance: {formatCurrency(selectedInvoice.balance_due)}</strong></div>
             </div>
 
             {selectedInvoice.payments?.length > 0 && (
