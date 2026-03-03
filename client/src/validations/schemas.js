@@ -179,6 +179,23 @@ export const jobCardSchema = Yup.object({
     .required('Purpose is required')
 });
 
+// Quotation schema
+export const quotationSchema = Yup.object({
+  client_id: Yup.number()
+    .required('Client is required'),
+  quotation_date: Yup.date()
+    .required('Quotation date is required'),
+  valid_until: Yup.date()
+    .required('Valid until date is required'),
+  items: Yup.array().of(
+    Yup.object({
+      description: Yup.string().required('Description is required'),
+      quantity: Yup.number().positive().required('Quantity is required'),
+      unit_price: Yup.number().positive().required('Unit price is required')
+    })
+  ).min(1, 'At least one item is required')
+});
+
 // Equipment schema
 export const equipmentSchema = Yup.object({
   name: Yup.string()

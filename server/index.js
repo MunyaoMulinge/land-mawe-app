@@ -2146,6 +2146,315 @@ app.get('/api/clients/:id/invoices', async (req, res) => {
   }
 });
 
+// ============ QUOTATION ENDPOINTS ============
+
+// Get all quotations
+app.get('/api/quotations', async (req, res) => {
+  const { client_id, status } = req.query;
+  try {
+    let query = supabase
+      .from('quotations')
+      .select('*, clients(name)')
+      .order('created_at', { ascending: false });
+    if (client_id) query = query.eq('client_id', client_id);
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) throw error;
+    const mapped = data.map(q => ({ ...q, client_name: q.clients?.name }));
+    res.json(mapped);
+  } catch (err) {
+    console.error('Error fetching quotations:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get quotation stats
+app.get('/api/quotations/stats', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('quotations').select('status, total_amount');
+    if (error) throw error;
+    const stats = {
+      total: data.length,
+      draft: data.filter(q => q.status === 'draft').length,
+      sent: data.filter(q => q.status === 'sent').length,
+      accepted: data.filter(q => q.status === 'accepted').length,
+      rejected: data.filter(q => q.status === 'rejected').length,
+      converted: data.filter(q => q.status === 'converted').length,
+      total_value: data.reduce((sum, q) => sum + parseFloat(q.total_amount || 0), 0),
+      accepted_value: data.filter(q => ['accepted', 'converted'].includes(q.status))
+        .reduce((sum, q) => sum + parseFloat(q.total_amount || 0), 0)
+    };
+    res.json(stats);
+  } catch (err) {
+    console.error('Error fetching quotation stats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single quotation with items
+app.get('/api/quotations/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('quotations')
+      .select('*, clients(*), quotation_items(*)')
+      .eq('id', req.params.id)
+      .single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching quotation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create quotation
+app.post('/api/quotations', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { client_id, booking_id, quotation_date, valid_until, items, notes, terms, tax_rate } = req.body;
+  try {
+    // Generate quotation number
+    const yearMonth = new Date().toISOString().slice(2, 4) + new Date().toISOString().slice(5, 7);
+    const { data: lastQuote } = await supabase
+      .from('quotations')
+      .select('quotation_number')
+      .ilike('quotation_number', `QUO-${yearMonth}%`)
+      .order('quotation_number', { ascending: false })
+      .limit(1);
+    let seqNum = 1;
+    if (lastQuote && lastQuote.length > 0) {
+      const lastNum = parseInt(lastQuote[0].quotation_number.split('-')[2]) || 0;
+      seqNum = lastNum + 1;
+    }
+    const quotation_number = `QUO-${yearMonth}-${String(seqNum).padStart(4, '0')}`;
+
+    const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.unit_price)), 0);
+    const taxRateNum = parseFloat(tax_rate) || 16;
+    const tax_amount = subtotal * (taxRateNum / 100);
+    const total_amount = subtotal + tax_amount;
+
+    const { data: quotation, error: quoteError } = await supabase
+      .from('quotations')
+      .insert([{
+        quotation_number,
+        client_id,
+        booking_id: booking_id || null,
+        quotation_date,
+        valid_until,
+        subtotal,
+        tax_rate: taxRateNum,
+        tax_amount,
+        total_amount,
+        notes,
+        terms,
+        status: 'draft',
+        created_by: userId
+      }])
+      .select()
+      .single();
+    if (quoteError) throw quoteError;
+
+    if (items && items.length > 0) {
+      const quoteItems = items.map(item => ({
+        quotation_id: quotation.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        amount: parseFloat(item.quantity) * parseFloat(item.unit_price),
+        truck_id: item.truck_id || null
+      }));
+      const { error: itemsError } = await supabase.from('quotation_items').insert(quoteItems);
+      if (itemsError) throw itemsError;
+    }
+
+    await logActivity(userId, 'QUOTATION_CREATED', 'quotation', quotation.id, { quotation_number, total_amount });
+    res.json(quotation);
+  } catch (err) {
+    console.error('Error creating quotation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update quotation
+app.patch('/api/quotations/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { client_id, quotation_date, valid_until, items, notes, terms, tax_rate } = req.body;
+  try {
+    const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.unit_price)), 0);
+    const taxRateNum = parseFloat(tax_rate) || 16;
+    const tax_amount = subtotal * (taxRateNum / 100);
+    const total_amount = subtotal + tax_amount;
+
+    const { data: quotation, error: quoteError } = await supabase
+      .from('quotations')
+      .update({
+        client_id,
+        quotation_date,
+        valid_until,
+        subtotal,
+        tax_rate: taxRateNum,
+        tax_amount,
+        total_amount,
+        notes,
+        terms,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (quoteError) throw quoteError;
+
+    // Replace items
+    await supabase.from('quotation_items').delete().eq('quotation_id', req.params.id);
+    if (items && items.length > 0) {
+      const quoteItems = items.map(item => ({
+        quotation_id: quotation.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        amount: parseFloat(item.quantity) * parseFloat(item.unit_price),
+        truck_id: item.truck_id || null
+      }));
+      await supabase.from('quotation_items').insert(quoteItems);
+    }
+
+    await logActivity(userId, 'QUOTATION_UPDATED', 'quotation', quotation.id, { total_amount });
+    res.json(quotation);
+  } catch (err) {
+    console.error('Error updating quotation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update quotation status
+app.patch('/api/quotations/:id/status', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { status } = req.body;
+  try {
+    const updates = { status, updated_at: new Date().toISOString() };
+    if (status === 'sent') updates.sent_at = new Date().toISOString();
+    if (status === 'accepted') updates.accepted_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('quotations')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) throw error;
+    await logActivity(userId, 'QUOTATION_STATUS_CHANGED', 'quotation', data.id, { status });
+    res.json(data);
+  } catch (err) {
+    console.error('Error updating quotation status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Convert quotation to invoice
+app.post('/api/quotations/:id/convert', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  try {
+    // Fetch quotation with items
+    const { data: quotation, error: fetchErr } = await supabase
+      .from('quotations')
+      .select('*, quotation_items(*)')
+      .eq('id', req.params.id)
+      .single();
+    if (fetchErr) throw fetchErr;
+    if (quotation.status === 'converted') {
+      return res.status(400).json({ error: 'Quotation already converted to invoice' });
+    }
+
+    // Generate invoice number
+    const yearMonth = new Date().toISOString().slice(2, 4) + new Date().toISOString().slice(5, 7);
+    const { data: lastInvoice } = await supabase
+      .from('invoices')
+      .select('invoice_number')
+      .ilike('invoice_number', `INV-${yearMonth}%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1);
+    let seqNum = 1;
+    if (lastInvoice && lastInvoice.length > 0) {
+      const lastNum = parseInt(lastInvoice[0].invoice_number.split('-')[2]) || 0;
+      seqNum = lastNum + 1;
+    }
+    const invoice_number = `INV-${yearMonth}-${String(seqNum).padStart(4, '0')}`;
+
+    // Default due date: 30 days from now
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+
+    const { data: invoice, error: invError } = await supabase
+      .from('invoices')
+      .insert([{
+        invoice_number,
+        client_id: quotation.client_id,
+        booking_id: quotation.booking_id,
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: dueDate.toISOString().split('T')[0],
+        subtotal: quotation.subtotal,
+        tax_rate: quotation.tax_rate,
+        tax_amount: quotation.tax_amount,
+        total_amount: quotation.total_amount,
+        balance_due: quotation.total_amount,
+        notes: quotation.notes,
+        terms: quotation.terms,
+        status: 'draft',
+        created_by: userId
+      }])
+      .select()
+      .single();
+    if (invError) throw invError;
+
+    // Copy items
+    if (quotation.quotation_items?.length > 0) {
+      const invoiceItems = quotation.quotation_items.map(item => ({
+        invoice_id: invoice.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        amount: item.amount
+      }));
+      await supabase.from('invoice_items').insert(invoiceItems);
+    }
+
+    // Mark quotation as converted
+    await supabase
+      .from('quotations')
+      .update({ status: 'converted', invoice_id: invoice.id, converted_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+
+    await logActivity(userId, 'QUOTATION_CONVERTED', 'quotation', quotation.id, { 
+      quotation_number: quotation.quotation_number, invoice_number 
+    });
+    res.json({ quotation_id: quotation.id, invoice });
+  } catch (err) {
+    console.error('Error converting quotation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete quotation (draft only)
+app.delete('/api/quotations/:id', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  try {
+    const { data: quotation } = await supabase
+      .from('quotations')
+      .select('status, quotation_number')
+      .eq('id', req.params.id)
+      .single();
+    if (quotation && quotation.status !== 'draft') {
+      return res.status(400).json({ error: 'Only draft quotations can be deleted' });
+    }
+    await supabase.from('quotation_items').delete().eq('quotation_id', req.params.id);
+    await supabase.from('quotations').delete().eq('id', req.params.id);
+    await logActivity(userId, 'QUOTATION_DELETED', 'quotation', req.params.id, { quotation_number: quotation?.quotation_number });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting quotation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ INSURANCE & COMPLIANCE ENDPOINTS ============
 
 // Get document types
