@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Formik, Form } from 'formik'
 import { API_BASE } from '../config'
 import AnimatedModal from './AnimatedModal'
 import FormikField from './FormikField'
 import { jobCardSchema } from '../validations/schemas'
 import { usePermissions } from '../hooks/usePermissions'
+import { buildJobCardPdf } from '../utils/jobCardPdf'
 
 const EQUIPMENT_TYPES = [
   'Generator Model', 'Sub Woofer', 'Full Range', 'Rear Speakers', 'Monitor',
@@ -24,6 +25,9 @@ export default function JobCards({ currentUser }) {
   const [savingChecklist, setSavingChecklist] = useState(false)
   const [jobEquipment, setJobEquipment] = useState([])
   const [filter, setFilter] = useState({ status: '' })
+  const [pdfPreview, setPdfPreview] = useState(null) // { url, filename }
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const pdfFrameRef = useRef(null)
   const { hasPermission } = usePermissions()
   
   const initialValues = {
@@ -253,6 +257,39 @@ export default function JobCards({ currentUser }) {
       console.error('Error loading job card details:', err)
       setChecklist({})
       setJobEquipment([])
+    }
+  }
+
+  const closePdfPreview = () => {
+    if (pdfPreview) URL.revokeObjectURL(pdfPreview.url)
+    setPdfPreview(null)
+  }
+
+  // Fetch the full record (checklist + equipment) and render it in the preview modal
+  const previewJobCardPdf = async (job) => {
+    setPdfLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/job-cards/${job.id}`, {
+        headers: { 'x-user-id': currentUser?.id }
+      })
+      if (!res.ok) throw new Error('Failed to load job card')
+      const full = await res.json()
+      const blob = buildJobCardPdf(full).output('blob')
+      if (pdfPreview) URL.revokeObjectURL(pdfPreview.url)
+      setPdfPreview({ url: URL.createObjectURL(blob), filename: `${full.job_number}.pdf` })
+    } catch (err) {
+      console.error('Error generating job card PDF:', err)
+      alert('Failed to generate PDF')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
+  const printPdf = () => {
+    const frame = pdfFrameRef.current
+    if (frame?.contentWindow) {
+      frame.contentWindow.focus()
+      frame.contentWindow.print()
     }
   }
 
@@ -667,6 +704,14 @@ export default function JobCards({ currentUser }) {
                       >
                         View
                       </button>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => previewJobCardPdf(job)}
+                        disabled={pdfLoading}
+                        title="Preview / print PDF"
+                      >
+                        🖨️ PDF
+                      </button>
                       {hasPermission('job_cards', 'edit') && ['draft', 'pending_approval'].includes(job.status) && (
                         <button 
                           className="btn btn-small"
@@ -935,7 +980,29 @@ export default function JobCards({ currentUser }) {
                   ✔️ Mark Completed
                 </button>
               )}
+              <button className="btn" onClick={() => previewJobCardPdf(selectedJobCard)} disabled={pdfLoading}>
+                {pdfLoading ? 'Generating...' : '🖨️ Print / PDF'}
+              </button>
               <button className="btn" onClick={() => { setSelectedJobCard(null); setChecklist(null) }}>Close</button>
+            </div>
+          </>
+        )}
+      </AnimatedModal>
+
+      {/* PDF Preview Modal */}
+      <AnimatedModal isOpen={!!pdfPreview} onClose={closePdfPreview} title="Job Card Preview" maxWidth="900px">
+        {pdfPreview && (
+          <>
+            <iframe
+              ref={pdfFrameRef}
+              src={pdfPreview.url}
+              title="Job card PDF preview"
+              style={{ width: '100%', height: '70vh', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#fff' }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+              <button className="btn btn-primary" onClick={printPdf}>🖨️ Print</button>
+              <a className="btn" href={pdfPreview.url} download={pdfPreview.filename}>⬇️ Download</a>
+              <button className="btn" onClick={closePdfPreview}>Close</button>
             </div>
           </>
         )}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 
-export default function AnimatedModal({ isOpen, onClose, children, title }) {
+export default function AnimatedModal({ isOpen, onClose, children, title, maxWidth = '500px' }) {
   const overlayRef = useRef(null);
   const contentRef = useRef(null);
 
@@ -61,7 +61,7 @@ export default function AnimatedModal({ isOpen, onClose, children, title }) {
           background: 'var(--bg-secondary)',
           borderRadius: '12px',
           padding: '1.5rem',
-          maxWidth: '500px',
+          maxWidth,
           width: '100%',
           maxHeight: '90vh',
           overflow: 'auto',
